@@ -8,6 +8,12 @@ This tool retrieves block data from multiple RPC nodes concurrently and saves it
 - Converts block data to JSON format and saves it as individual files.
 - Supports configuration of RPC nodes using Viper.
 
+## Dependencies
+
+- Golang
+- Web3go (https://github.com/openweb3/web3go)
+- Viper
+
 ## Installation
 
 1. Clone the repository:
