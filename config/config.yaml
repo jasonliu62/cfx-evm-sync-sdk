@@ -1,0 +1,7 @@
+block:
+  start: 1
+  end: 100
+
+nodes:
+  - "https://evmtestnet.confluxrpc.com/09K6dkMRr9xyz6suyNgqTR"
+  - "https://evmtestnet.confluxrpc.com/09K6dkMRr9xyz6suyNgqTR"
