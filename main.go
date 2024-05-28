@@ -19,9 +19,10 @@ func main() {
 	// 从配置文件读取节点地址
 	nodes := viper.GetStringSlice("nodes")
 
-	sync.SimpleGet(nodes[0], startBlock, endBlock)
+	// sync.SimpleGet(nodes[0], startBlock, endBlock)
 
 	// 并发访问节点
-	sync.ConcurrentGet(nodes, startBlock, endBlock)
-
+	// sync.ConcurrentGet(nodes, startBlock, endBlock)
+	// sync.PreloadPool(nodes, startBlock)
+	sync.InitConcurrentGet(nodes, startBlock, endBlock)
 }

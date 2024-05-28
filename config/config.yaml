@@ -3,5 +3,9 @@ block:
   end: 100
 
 nodes:
-  - "https://evmtestnet.confluxrpc.com"
-  - "https://evmtestnet.confluxrpc.com"
+  - "https://evmtestnet.confluxrpc.com/09K6dkMRr9xyz6suyNgqTR"
+  - "https://evmtestnet.confluxrpc.com/09K6dkMRr9xyz6suyNgqTR"
+
+preload:
+  count: 60
+  min: 30
