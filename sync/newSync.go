@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/viper"
 	"log"
 	"sync"
-	"time"
 )
 
 type Data struct {
@@ -30,7 +29,6 @@ func addToDataPool(id uint64, block *types.Block) {
 func PreloadPool(nodes []string, startBlock uint64) {
 	initDataPool()
 	preloadCount := viper.GetUint64("preload.count")
-	// preloadMin := viper.GetUint64("preload.min")
 	var wg sync.WaitGroup
 	wg.Add(len(nodes))
 	for index, node := range nodes {
@@ -49,6 +47,7 @@ func PreloadPool(nodes []string, startBlock uint64) {
 			// 一次预加载60个区块
 			for blockNumber := nodeStartBlock; blockNumber <= nodeEndBlock; blockNumber++ {
 				block, err := w3client.Eth.BlockByNumber(types.BlockNumber(blockNumber), false)
+				// TODO: 错误处理
 				if err != nil {
 					log.Printf("Failed to get block %d from %s: %v", blockNumber, nodeUrl, err)
 					continue
@@ -62,10 +61,9 @@ func PreloadPool(nodes []string, startBlock uint64) {
 	}
 
 	wg.Wait()
+	// TODO: 改成config里的参数
 	nextNum = startBlock + 60
 
-	// 检查池的大小，如果少于 30 个，则启动一个 goroutine 去从网上获取数据并放入池
-	// TODO: 需要在后面ConcurrentGetPool里面get并删除pool里东西的时候，一直检查如果池子大小少于30个，则去取额外的30个数据，具体function是：concurrentFetchData
 }
 
 func concurrentFetchData(nodes []string, startBlock, preloadNewGet uint64) {
@@ -88,6 +86,7 @@ func concurrentFetchData(nodes []string, startBlock, preloadNewGet uint64) {
 			// 一次预加载30个区块
 			for blockNumber := nodeStartBlock; blockNumber <= nodeEndBlock; blockNumber++ {
 				block, err := w3client.Eth.BlockByNumber(types.BlockNumber(blockNumber), false)
+				// TODO: 错误处理
 				if err != nil {
 					log.Printf("Failed to get block %d from %s: %v", blockNumber, nodeUrl, err)
 					continue
@@ -101,12 +100,16 @@ func concurrentFetchData(nodes []string, startBlock, preloadNewGet uint64) {
 	}
 
 	wg.Wait()
+	// TODO: 改成config里的参数
+	nextNum = startBlock + 30
 }
 
 func ConcurrentGetPool(nodes []string, startBlock, endBlock uint64) {
 
 	var wg sync.WaitGroup
 	wg.Add(len(nodes))
+
+	var fetchLock sync.Mutex
 
 	for index := range nodes {
 		go func(index int) {
@@ -133,9 +136,15 @@ func ConcurrentGetPool(nodes []string, startBlock, endBlock uint64) {
 					log.Printf("Failed to convert block %d to JSON: %v", blockNumber, err)
 					continue
 				}
+				fetchLock.Lock()
+				if uint64(len(dataPool)) < viper.GetUint64("preload.min") {
+					preloadCount := viper.GetUint64("preload.count")
+					preloadMin := viper.GetUint64("preload.min")
+					concurrentFetchData(nodes, nextNum, preloadCount-preloadMin)
+				}
+				fmt.Printf("现在pool长度是： %d.\n", len(dataPool))
+				fetchLock.Unlock()
 			}
-			// 检查池的大小，如果少于 30 个，则启动一个 goroutine 去从网上获取数据并放入池
-			// TODO: 需要在后面ConcurrentGetPool里面get并删除pool里东西的时候，一直检查如果池子大小少于30个，则去取额外的30个数据，具体function是：concurrentFetchData
 		}(index)
 	}
 
@@ -154,12 +163,9 @@ func InitConcurrentGet(nodes []string, startBlock, endBlock uint64) {
 	}
 
 	for start <= endBlock {
-		for uint64(len(dataPool)) < end {
-			time.Sleep(time.Second) // 等待一秒钟后再次检查
-		}
 		ConcurrentGetPool(nodes, start, end)
 		start = end + 1
-		end = viper.GetUint64("preload.count")
+		end = end + viper.GetUint64("preload.count")
 		if endBlock < end {
 			end = endBlock
 		}
