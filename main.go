@@ -1,8 +1,8 @@
 package main
 
 import (
+	"cfx-evm-sync-sdk/biz/blockNumberBiz"
 	"cfx-evm-sync-sdk/config"
-	"cfx-evm-sync-sdk/sync"
 	"github.com/spf13/viper"
 )
 
@@ -24,5 +24,5 @@ func main() {
 	// 并发访问节点
 	// sync.ConcurrentGet(nodes, startBlock, endBlock)
 	// sync.PreloadPool(nodes, startBlock)
-	sync.InitConcurrentGet(nodes, startBlock, endBlock)
+	blockNumberBiz.BlockByNumber(nodes, startBlock, endBlock)
 }
