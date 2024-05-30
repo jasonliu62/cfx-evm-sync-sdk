@@ -1,110 +1,51 @@
 package blockNumberSync
 
 import (
+	"cfx-evm-sync-sdk/biz/blockNumberBiz"
 	"cfx-evm-sync-sdk/rpc"
 	"fmt"
 	"github.com/openweb3/web3go"
-	"github.com/openweb3/web3go/types"
 	"github.com/spf13/viper"
 	"log"
-	"math/big"
 	"sync"
 )
 
-type Data struct {
-	block        *types.Block
-	receipt      []*types.Receipt
-	transactions *big.Int
-	uncleCounts  *big.Int
+type DataWrap struct {
+	value interface{}
 }
 
 var poolMutex sync.Mutex
-var dataPool map[uint64]Data
+var dataPool map[uint64]DataWrap
 var nextNum uint64
 
 // TODO: 增加一个缓存错误blockNumber用于重发的池子
 // 具体什么时候发送？
 
 func initDataPool() {
-	dataPool = make(map[uint64]Data)
+	dataPool = make(map[uint64]DataWrap)
 }
 
-func addBlockToDataPool(id uint64, block *types.Block) {
-	dataPool[id] = Data{block: block}
+func addDataToPool(id uint64, value interface{}) {
+	dataPool[id] = DataWrap{value: value}
 }
 
-func getBlock(w3client *web3go.Client, blockNumber uint64, nodeUrl string) {
-	block, err := w3client.Eth.BlockByNumber(types.BlockNumber(blockNumber), false)
+func dataTrim(w3client *web3go.Client, blockNumber uint64, nodeUrl string, getFunc blockNumberBiz.GetFunc) {
+	result, err := getFunc(w3client, blockNumber)
 	// TODO: 错误处理
 	if err != nil {
-		log.Printf("Failed to get block %d from %s: %v", blockNumber, nodeUrl, err)
+		log.Printf("Failed to get data from block %d from %s: %v", blockNumber, nodeUrl, err)
 		return
 	}
-	fmt.Printf("We have block %d.\n", blockNumber)
-	poolMutex.Lock()
-	addBlockToDataPool(blockNumber, block)
-	poolMutex.Unlock()
+	addDataToPool(blockNumber, result)
 }
 
-func addReceiptToDataPool(id uint64, receipt []*types.Receipt) {
-	dataPool[id] = Data{receipt: receipt}
-}
-
-func getReceipt(w3client *web3go.Client, blockNumber uint64, nodeUrl string) {
-	blk := types.BlockNumberOrHashWithNumber(types.BlockNumber(blockNumber))
-	receipt, err := w3client.Eth.BlockReceipts(&blk)
-	// TODO: 错误处理
-	if err != nil {
-		log.Printf("Failed to get receipt %d from %s: %v", blockNumber, nodeUrl, err)
-		return
-	}
-	fmt.Printf("We have receipt from block %d.\n", blockNumber)
-	poolMutex.Lock()
-	addReceiptToDataPool(blockNumber, receipt)
-	poolMutex.Unlock()
-}
-
-func addTransactionToDataPool(id uint64, transactions *big.Int) {
-	dataPool[id] = Data{transactions: transactions}
-}
-
-func getTransaction(w3client *web3go.Client, blockNumber uint64, nodeUrl string) {
-	trans, err := w3client.Eth.BlockTransactionCountByNumber(types.BlockNumber(blockNumber))
-	// TODO: 错误处理
-	if err != nil {
-		log.Printf("Failed to get transaction %d from %s: %v", blockNumber, nodeUrl, err)
-		return
-	}
-	fmt.Printf("We have transaction from block %d.\n", blockNumber)
-	poolMutex.Lock()
-	addTransactionToDataPool(blockNumber, trans)
-	poolMutex.Unlock()
-}
-
-func addUncleCountToDataPool(id uint64, uncleCount *big.Int) {
-	dataPool[id] = Data{uncleCounts: uncleCount}
-}
-
-func getUncleCount(w3client *web3go.Client, blockNumber uint64, nodeUrl string) {
-	trans, err := w3client.Eth.BlockUnclesCountByNumber(types.BlockNumber(blockNumber))
-	// TODO: 错误处理
-	if err != nil {
-		log.Printf("Failed to get uncle count %d from %s: %v", blockNumber, nodeUrl, err)
-		return
-	}
-	fmt.Printf("We have uncle count from block %d.\n", blockNumber)
-	poolMutex.Lock()
-	addUncleCountToDataPool(blockNumber, trans)
-	poolMutex.Unlock()
-}
-
-func PreloadPool(nodes []string, startBlock uint64, instruction string) {
+func PreloadPool(nodes []string, startBlock uint64, getFunc blockNumberBiz.GetFunc) {
 	initDataPool()
 	preloadCount := viper.GetUint64("preload.count")
-	concurrentFetchData(nodes, startBlock, preloadCount, instruction)
+	concurrentFetchData(nodes, startBlock, preloadCount, getFunc)
 }
 
-func concurrentFetchData(nodes []string, startBlock, preloadNewGet uint64, instruction string) {
+func concurrentFetchData(nodes []string, startBlock, preloadNewGet uint64, getFunc blockNumberBiz.GetFunc) {
 	var wg sync.WaitGroup
 	wg.Add(len(nodes))
 
@@ -122,17 +63,7 @@ func concurrentFetchData(nodes []string, startBlock, preloadNewGet uint64, instr
 				nodeEndBlock = startBlock + preloadNewGet - 1
 			}
 			for blockNumber := nodeStartBlock; blockNumber <= nodeEndBlock; blockNumber++ {
-				if instruction == "BlockByNumber" {
-					getBlock(w3client, blockNumber, nodeUrl)
-				} else if instruction == "BlockReceipts" {
-					getReceipt(w3client, blockNumber, nodeUrl)
-				} else if instruction == "BlockTransactionCountByNumber" {
-					getTransaction(w3client, blockNumber, nodeUrl)
-				} else if instruction == "BlockUnclesCountByNumber" {
-					getUncleCount(w3client, blockNumber, nodeUrl)
-				} else {
-					log.Printf("Fail to receive correct instruction.")
-				}
+				dataTrim(w3client, blockNumber, nodeUrl, getFunc)
 			}
 		}(node, index)
 	}
@@ -141,7 +72,7 @@ func concurrentFetchData(nodes []string, startBlock, preloadNewGet uint64, instr
 	nextNum = startBlock + preloadNewGet
 }
 
-func ConcurrentGetPool(nodes []string, startBlock, endBlock uint64, instruction string) {
+func ConcurrentGetPool(nodes []string, startBlock, endBlock uint64, getFunc blockNumberBiz.GetFunc) {
 
 	var wg sync.WaitGroup
 	wg.Add(len(nodes))
@@ -167,19 +98,14 @@ func ConcurrentGetPool(nodes []string, startBlock, endBlock uint64, instruction 
 				if ok {
 					delete(dataPool, blockNumber) // 从池中删除已取出的数据
 				}
-				poolMutex.Unlock()
+				// poolMutex.Unlock()
 				// TODO: 每个收到的data要具体做什么操作？
-				//fmt.Printf("We get pool of block %d.\n", data.block.Number)
-				//_, err := json.ConvertToJSON(data.block)
-				//if err != nil {
-				//	log.Printf("Failed to convert block %d to JSON: %v", blockNumber, err)
-				//	continue
-				//}
-				fetchLock.Lock()
+				// fetchLock.Lock()
+				// 每扣一个都检测剩余池子还能不能满足30个，如果不满足，先填满再接着扣
 				if uint64(len(dataPool)) < viper.GetUint64("preload.min") {
 					preloadCount := viper.GetUint64("preload.count")
 					preloadMin := viper.GetUint64("preload.min")
-					concurrentFetchData(nodes, nextNum, preloadCount-preloadMin, instruction)
+					concurrentFetchData(nodes, nextNum, preloadCount-preloadMin, getFunc)
 				}
 				fmt.Printf("现在pool长度是： %d.\n", len(dataPool))
 				fetchLock.Unlock()
@@ -190,10 +116,10 @@ func ConcurrentGetPool(nodes []string, startBlock, endBlock uint64, instruction 
 	wg.Wait()
 }
 
-func InitConcurrentGet(nodes []string, startBlock, endBlock uint64, instruction string) {
+func InitConcurrentGet(nodes []string, startBlock, endBlock uint64, getFunc blockNumberBiz.GetFunc) {
 
 	// 预加载池中的数据
-	PreloadPool(nodes, startBlock, instruction)
+	PreloadPool(nodes, startBlock, getFunc)
 
 	start := startBlock
 	end := viper.GetUint64("preload.count")
@@ -202,7 +128,7 @@ func InitConcurrentGet(nodes []string, startBlock, endBlock uint64, instruction 
 	}
 
 	for start <= endBlock {
-		ConcurrentGetPool(nodes, start, end, instruction)
+		ConcurrentGetPool(nodes, start, end, getFunc)
 		start = end + 1
 		end = end + viper.GetUint64("preload.count")
 		if endBlock < end {
@@ -210,4 +136,12 @@ func InitConcurrentGet(nodes []string, startBlock, endBlock uint64, instruction 
 		}
 
 	}
+}
+
+func InitMultiTask(nodes []string, startBlock, endBlock uint64, getFuncs []blockNumberBiz.GetFunc) {
+	if len(getFuncs) < len(nodes) {
+		log.Printf("Functions exceeds node limits")
+		return
+	}
+
 }
