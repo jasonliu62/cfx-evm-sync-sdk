@@ -10,7 +10,7 @@ import (
 )
 
 type DataWrap struct {
-	value interface{}
+	Value interface{}
 }
 
 var poolMutex sync.Mutex
@@ -42,7 +42,7 @@ func initDataPool() {
 }
 
 func addDataToPool(id uint64, value interface{}) {
-	dataPool[id] = DataWrap{value: value}
+	dataPool[id] = DataWrap{Value: value}
 }
 
 func dataTrim(w3client *web3go.Client, blockNumber uint64, nodeUrl string, getFunc blockNumberBiz.GetFunc) {
