@@ -16,6 +16,7 @@ type DataWrap struct {
 var poolMutex sync.Mutex
 var dataPool map[uint64]DataWrap
 var nextNum uint64
+var remainingNeed uint64
 
 // Sdk 包含节点信息
 type Sdk struct {
@@ -83,9 +84,10 @@ func (s *Sdk) concurrentFetchData(startBlock, preloadNewGet uint64, getFunc bloc
 
 	wg.Wait()
 	nextNum = startBlock + preloadNewGet
+	remainingNeed -= preloadNewGet
 }
 
-func (s *Sdk) ConcurrentGetPool(startBlock, endBlock uint64, getFunc blockNumberBiz.GetFunc) {
+func (s *Sdk) ConcurrentGetPool(startBlock, endBlock uint64, getFunc blockNumberBiz.GetFunc, remainingNeed uint64) {
 
 	var wg sync.WaitGroup
 	wg.Add(len(s.Nodes))
@@ -111,11 +113,24 @@ func (s *Sdk) ConcurrentGetPool(startBlock, endBlock uint64, getFunc blockNumber
 				if ok {
 					delete(dataPool, blockNumber) // 从池中删除已取出的数据
 				}
+				poolMutex.Unlock()
 				// 输出的result
 				s.Result = append(s.Result, data)
-				// 每扣一个都检测剩余池子还能不能满足30个，如果不满足，先填满再接着扣
-				if uint64(len(dataPool)) < s.preloadMin {
-					s.concurrentFetchData(nextNum, s.preloadCount-s.preloadMin, getFunc)
+				// 每扣一个都检测剩余池子还能不能满足min个，如果不满足，先填满再接着扣
+				// 满足这三点:
+				// 1. 如果池子不到min个，要再取(count - min)个进来。
+				// 2. 但是如果还剩下要取的数值小于min个，那就取剩下数值个（比如我池子29个，然后我还需要再取10个，那我就池子再取10个，而不是30个）
+				// 3. 如果池子里剩余的数值已经把要取的都cover了，那就不取（如果我池子还有29个， 但我不需要再取新的了，那就不取了）
+				fetchLock.Lock()
+				if remainingNeed > 0 {
+					defaultGetNum := s.preloadCount - s.preloadMin
+					if uint64(len(dataPool)) < s.preloadMin {
+						if remainingNeed < defaultGetNum {
+							s.concurrentFetchData(nextNum, remainingNeed, getFunc)
+						} else {
+							s.concurrentFetchData(nextNum, defaultGetNum, getFunc)
+						}
+					}
 				}
 				fmt.Printf("现在pool长度是： %d.\n", len(dataPool))
 				fetchLock.Unlock()
@@ -131,6 +146,9 @@ func (s *Sdk) InitConcurrentGet(startBlock, endBlock uint64, getFunc blockNumber
 	// 预加载池中的数据
 	s.PreloadPool(startBlock, getFunc)
 
+	// 还需要取多少个数值
+	remainingNeed = endBlock - startBlock + 1
+
 	start := startBlock
 	end := s.preloadCount
 	if endBlock < end {
@@ -138,7 +156,7 @@ func (s *Sdk) InitConcurrentGet(startBlock, endBlock uint64, getFunc blockNumber
 	}
 
 	for start <= endBlock {
-		s.ConcurrentGetPool(start, end, getFunc)
+		s.ConcurrentGetPool(start, end, getFunc, remainingNeed)
 		start = end + 1
 		end = end + s.preloadCount
 		if endBlock < end {
