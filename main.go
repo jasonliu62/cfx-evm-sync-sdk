@@ -1,28 +1,34 @@
 package main
 
 import (
-	"cfx-evm-sync-sdk/biz/blockNumberBiz"
+	"cfx-evm-sync-sdk/biz/simpleBiz"
 	"cfx-evm-sync-sdk/config"
+	"cfx-evm-sync-sdk/store/cfxMysql"
 	"github.com/spf13/viper"
 )
 
 func main() {
 
-	// 定义要获取的区块范围
-	//startBlock := uint64(1)
-	//endBlock := uint64(100)
+	//// 定义要获取的区块范围
+	////startBlock := uint64(1)
+	////endBlock := uint64(100)
 	config.InitConfig()
-	// 从配置文件读取区块范围
-	startBlock := viper.GetUint64("block.start")
-	endBlock := viper.GetUint64("block.end")
-
-	// 从配置文件读取节点地址
-	nodes := viper.GetStringSlice("nodes")
-
-	// sync.SimpleGet(nodes[0], startBlock, endBlock)
-
-	// 并发访问节点
-	// sync.ConcurrentGet(nodes, startBlock, endBlock)
-	// sync.PreloadPool(nodes, startBlock)
-	blockNumberBiz.BlockByNumber(nodes, startBlock, endBlock)
+	//// 从配置文件读取区块范围
+	////startBlock := viper.GetUint64("block.start")
+	////endBlock := viper.GetUint64("block.end")
+	//
+	//// 从配置文件读取节点地址
+	nodeUrl := viper.GetStringSlice("nodes")[0]
+	//
+	//// sync.SimpleGet(nodes[0], startBlock, endBlock)
+	//
+	db := cfxMysql.Start()
+	res := simpleBiz.BlockByNumber(nodeUrl, uint64(10), uint64(12))
+	//for key, dataWrap := range res {
+	//	fmt.Printf("Key: %d, Value: %v, Type: %T\n", key, dataWrap.Value, dataWrap.Value)
+	//}
+	err := simpleBiz.StoreBlock(res, db)
+	if err != nil {
+		return
+	}
 }
