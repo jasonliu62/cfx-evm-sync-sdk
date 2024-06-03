@@ -51,6 +51,10 @@ func InitDB(db *gorm.DB) error {
 	if err != nil {
 		return err
 	}
+	err = db.AutoMigrate(&Author{})
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
