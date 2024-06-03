@@ -59,8 +59,9 @@ func StoreBlock(res map[uint64]common.DataWrap, db *gorm.DB) error {
 			return fmt.Errorf("invalid type for block at key %d", key)
 		}
 		// 转换并存储块数据
-		dbBlock := cfxMysql.ConvertBlock(block)
-		if err := db.Create(&dbBlock).Error; err != nil {
+		dbBlock := cfxMysql.ConvertBlockWithoutAuthor(block)
+		authorName := cfxMysql.ConvertAuthorToString(block.Author)
+		if err := cfxMysql.StoreBlock(db, dbBlock, authorName); err != nil {
 			return err
 		}
 	}

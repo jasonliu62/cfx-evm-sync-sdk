@@ -1,6 +1,7 @@
 package cfxMysql
 
 import (
+	"errors"
 	"fmt"
 	"github.com/ghodss/yaml"
 	"gorm.io/driver/mysql"
@@ -53,7 +54,22 @@ func InitDB(db *gorm.DB) error {
 	return nil
 }
 
-func storeBlock(db *gorm.DB, block Block) error {
+func StoreBlock(db *gorm.DB, block Block, authorName string) error {
+	var author Author
+
+	// Check if the author exists
+	if err := db.Where("author = ?", authorName).First(&author).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Author not found, create a new author
+			author = Author{Author: authorName}
+			if err := db.Create(&author).Error; err != nil {
+				return fmt.Errorf("failed to create author: %w", err)
+			}
+		} else {
+			return fmt.Errorf("failed to query author: %w", err)
+		}
+	}
+	block.AuthorID = author.ID
 	return db.Create(&block).Error
 }
 
