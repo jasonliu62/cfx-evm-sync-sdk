@@ -23,7 +23,7 @@ func main() {
 	//// sync.SimpleGet(nodes[0], startBlock, endBlock)
 	//
 	db := cfxMysql.Start()
-	res := simpleBiz.BlockByNumber(nodeUrl, uint64(10), uint64(12))
+	res := simpleBiz.ContinueBlockByNumber(nodeUrl, uint64(10))
 	//for key, dataWrap := range res {
 	//	fmt.Printf("Key: %d, Value: %v, Type: %T\n", key, dataWrap.Value, dataWrap.Value)
 	//}
