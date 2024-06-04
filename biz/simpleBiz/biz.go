@@ -2,7 +2,6 @@ package simpleBiz
 
 import (
 	"cfx-evm-sync-sdk/common"
-	"cfx-evm-sync-sdk/rpc"
 	"cfx-evm-sync-sdk/store/cfxMysql"
 	"cfx-evm-sync-sdk/sync/simpleSync"
 	"context"
@@ -18,25 +17,23 @@ import (
 )
 
 func BlockByNumber(node string, startBlock, endBlock uint64) map[uint64]common.DataWrap {
-	result := make(map[uint64]common.DataWrap)
-	s := simpleSync.NewSdk(node, result)
 	GetFunc := func(w3client *web3go.Client, blockNumber interface{}) (interface{}, error) {
 		blockNumberUint := blockNumber.(uint64)
 		block, err := w3client.Eth.BlockByNumber(types.BlockNumber(blockNumberUint), false)
 		return block, err
 	}
-	s.SimpleGet(startBlock, endBlock, GetFunc)
-	return result
+	s := simpleSync.NewSdk(node, GetFunc)
+	return s.SimpleGet(startBlock, endBlock)
+
 }
 
 func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
-	result := make(map[uint64]common.DataWrap)
-	s := simpleSync.NewSdk(node, result)
 	GetFunc := func(w3client *web3go.Client, blockNumber interface{}) (interface{}, error) {
 		blockNumberUint := blockNumber.(uint64)
 		block, err := w3client.Eth.BlockByNumber(types.BlockNumber(blockNumberUint), false)
 		return block, err
 	}
+	s := simpleSync.NewSdk(node, GetFunc)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -49,7 +46,6 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 		cancel()
 	}()
 
-	w3client := rpc.NewClient(node)
 	currentBlock := startBlock
 	//s.ContinueGet(ctx, startBlock, GetFunc)
 	for {
@@ -59,7 +55,7 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 			return
 		default:
 			for {
-				s.Get(w3client, currentBlock, GetFunc)
+				result := s.Get(currentBlock)
 				err := result[currentBlock].Error
 				if err != nil {
 					log.Println("Get err:", err)
@@ -69,6 +65,7 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 				fmt.Printf("We have block %d.", currentBlock)
 				err = StoreBlock(result[currentBlock].Value.(*types.Block), db)
 				if err != nil {
+					log.Printf("Failed to store block %d: %v", currentBlock, err)
 					return
 				}
 				break
