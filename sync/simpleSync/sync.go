@@ -5,6 +5,7 @@ import (
 	"cfx-evm-sync-sdk/rpc"
 	"context"
 	"fmt"
+	"github.com/openweb3/web3go"
 	"log"
 	"time"
 )
@@ -50,7 +51,7 @@ func (s *Sdk) ContinueGet(ctx context.Context, startBlock uint64, getFunc common
 		default:
 			for {
 				result, err := getFunc(w3client, currentBlock)
-				// TODO: 错误处理
+				// TODO: 错误处理需要放在biz层面。后续需要修改
 				for err != nil {
 					s.Result[currentBlock] = common.DataWrap{Error: err}
 					log.Printf("Failed to get data from block %d from %s: %v", currentBlock, s.Node, err)
@@ -63,5 +64,13 @@ func (s *Sdk) ContinueGet(ctx context.Context, startBlock uint64, getFunc common
 			}
 		}
 		currentBlock++
+	}
+}
+
+func (s *Sdk) Get(w3client *web3go.Client, blockNumber uint64, getFunc common.GetFunc) {
+	result, err := getFunc(w3client, blockNumber)
+	s.Result[blockNumber] = common.DataWrap{
+		Value: result,
+		Error: err,
 	}
 }

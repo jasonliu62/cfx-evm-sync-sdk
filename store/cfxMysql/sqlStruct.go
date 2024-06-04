@@ -28,5 +28,5 @@ func ConvertAuthorToString(author *common.Address) string {
 
 type Author struct {
 	ID     uint   `gorm:"primaryKey"`
-	Author string `json:"author,omitempty"`
+	Author string `gorm:"index" json:"author,omitempty"`
 }

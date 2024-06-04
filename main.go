@@ -27,7 +27,7 @@ func main() {
 	//for key, dataWrap := range res {
 	//	fmt.Printf("Key: %d, Value: %v, Type: %T\n", key, dataWrap.Value, dataWrap.Value)
 	//}
-	err := simpleBiz.StoreBlock(res, db)
+	err := simpleBiz.StoreBlockFromMap(res, db)
 	if err != nil {
 		return
 	}

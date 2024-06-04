@@ -2,6 +2,7 @@ package simpleBiz
 
 import (
 	"cfx-evm-sync-sdk/common"
+	"cfx-evm-sync-sdk/rpc"
 	"cfx-evm-sync-sdk/store/cfxMysql"
 	"cfx-evm-sync-sdk/sync/simpleSync"
 	"context"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 func BlockByNumber(node string, startBlock, endBlock uint64) map[uint64]common.DataWrap {
@@ -27,7 +29,7 @@ func BlockByNumber(node string, startBlock, endBlock uint64) map[uint64]common.D
 	return result
 }
 
-func ContinueBlockByNumber(node string, startBlock uint64) map[uint64]common.DataWrap {
+func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 	result := make(map[uint64]common.DataWrap)
 	s := simpleSync.NewSdk(node, result)
 	GetFunc := func(w3client *web3go.Client, blockNumber interface{}) (interface{}, error) {
@@ -47,12 +49,36 @@ func ContinueBlockByNumber(node string, startBlock uint64) map[uint64]common.Dat
 		cancel()
 	}()
 
-	s.ContinueGet(ctx, startBlock, GetFunc)
-	<-ctx.Done()
-	return result
+	w3client := rpc.NewClient(node)
+	currentBlock := startBlock
+	//s.ContinueGet(ctx, startBlock, GetFunc)
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("ContinueGet terminated")
+			return
+		default:
+			for {
+				s.Get(w3client, currentBlock, GetFunc)
+				err := result[currentBlock].Error
+				if err != nil {
+					log.Println("Get err:", err)
+					time.Sleep(1 * time.Second)
+					continue
+				}
+				fmt.Printf("We have block %d.", currentBlock)
+				err = StoreBlock(result[currentBlock].Value.(*types.Block), db)
+				if err != nil {
+					return
+				}
+				break
+			}
+		}
+		currentBlock++
+	}
 }
 
-func StoreBlock(res map[uint64]common.DataWrap, db *gorm.DB) error {
+func StoreBlockFromMap(res map[uint64]common.DataWrap, db *gorm.DB) error {
 	for key, dataWrap := range res {
 		block, ok := dataWrap.Value.(*types.Block)
 		if !ok {
@@ -64,6 +90,15 @@ func StoreBlock(res map[uint64]common.DataWrap, db *gorm.DB) error {
 		if err := cfxMysql.StoreBlock(db, dbBlock, authorName); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func StoreBlock(block *types.Block, db *gorm.DB) error {
+	dbBlock := cfxMysql.ConvertBlockWithoutAuthor(block)
+	authorName := cfxMysql.ConvertAuthorToString(block.Author)
+	if err := cfxMysql.StoreBlock(db, dbBlock, authorName); err != nil {
+		return err
 	}
 	return nil
 }
