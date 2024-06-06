@@ -1,7 +1,7 @@
 package simpleBiz
 
 import (
-	"cfx-evm-sync-sdk/common"
+	"cfx-evm-sync-sdk/data"
 	"cfx-evm-sync-sdk/store/cfxMysql"
 	"cfx-evm-sync-sdk/sync/simpleSync"
 	"context"
@@ -16,25 +16,32 @@ import (
 	"time"
 )
 
-func BlockByNumber(node string, startBlock, endBlock uint64) map[uint64]common.DataWrap {
-	GetFunc := func(w3client *web3go.Client, blockNumber interface{}) (interface{}, error) {
-		blockNumberUint := blockNumber.(uint64)
-		block, err := w3client.Eth.BlockByNumber(types.BlockNumber(blockNumberUint), false)
-		return block, err
-	}
-	s := simpleSync.NewSdk(node, GetFunc)
-	return s.SimpleGet(startBlock, endBlock)
-
-}
+//func BlockByNumber(node string, startBlock, endBlock uint64) map[uint64]data.DataWrap {
+//	GetFunc := func(w3client *web3go.Client, blockNumber interface{}) (interface{}, error) {
+//		blockNumberUint := blockNumber.(uint64)
+//		block, err := w3client.Eth.BlockByNumber(types.BlockNumber(blockNumberUint), false)
+//		return block, err
+//	}
+//	s := simpleSync.NewSdk(GetFunc)
+//	w3client := simpleSync.GetRpcClient(node)
+//	return s.SimpleGet(w3client, startBlock, endBlock)
+//
+//}
 
 func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
-	GetFunc := func(w3client *web3go.Client, blockNumber interface{}) (interface{}, error) {
-		blockNumberUint := blockNumber.(uint64)
+	w3client := simpleSync.GetRpcClient(node)
+	GetFuncBlock := func(w3client *web3go.Client, blockNumberOrHash data.BlockNumberOrHash) (interface{}, error) {
+		blockNumberUint := blockNumberOrHash.BlockNumber
 		block, err := w3client.Eth.BlockByNumber(types.BlockNumber(blockNumberUint), false)
 		return block, err
 	}
-	s := simpleSync.NewSdk(node, GetFunc)
-
+	GetFuncTrans := func(w3client *web3go.Client, blockNumberOrHash data.BlockNumberOrHash) (interface{}, error) {
+		blockHashCommon := blockNumberOrHash.Hash
+		block, err := w3client.Eth.TransactionByHash(blockHashCommon)
+		return block, err
+	}
+	s := simpleSync.NewSdk(GetFuncBlock)
+	s2 := simpleSync.NewSdk(GetFuncTrans)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	sigs := make(chan os.Signal)
@@ -55,18 +62,31 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 			return
 		default:
 			for {
-				result := s.Get(currentBlock)
-				err := result[currentBlock].Error
+				blockNumberOrHash := data.BlockNumberOrHash{
+					BlockNumber: currentBlock,
+				}
+				result := s.Get(w3client, blockNumberOrHash)
+				err := result.Error
 				if err != nil {
 					log.Println("Get err:", err)
 					time.Sleep(1 * time.Second)
 					continue
 				}
 				fmt.Printf("We have block %d.", currentBlock)
-				err = StoreBlock(result[currentBlock].Value.(*types.Block), db)
+				err = StoreBlock(result.Value.(*types.Block), db)
 				if err != nil {
 					log.Printf("Failed to store block %d: %v", currentBlock, err)
 					return
+				}
+
+				hash := result.Value.(*types.Block).Hash
+				blockNumberOrHash.Hash = hash
+				result = s2.Get(w3client, blockNumberOrHash)
+				err = result.Error
+				if err != nil {
+					log.Println("Get err:", err)
+					time.Sleep(1 * time.Second)
+					continue
 				}
 				break
 			}
@@ -75,7 +95,7 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 	}
 }
 
-func StoreBlockFromMap(res map[uint64]common.DataWrap, db *gorm.DB) error {
+func StoreBlockFromMap(res map[uint64]data.DataWrap, db *gorm.DB) error {
 	for key, dataWrap := range res {
 		block, ok := dataWrap.Value.(*types.Block)
 		if !ok {
@@ -83,7 +103,7 @@ func StoreBlockFromMap(res map[uint64]common.DataWrap, db *gorm.DB) error {
 		}
 		// 转换并存储块数据
 		dbBlock := cfxMysql.ConvertBlockWithoutAuthor(block)
-		authorName := cfxMysql.ConvertAuthorToString(block.Author)
+		authorName := cfxMysql.ConvertAddressToString(block.Author)
 		if err := cfxMysql.StoreBlock(db, dbBlock, authorName); err != nil {
 			return err
 		}
@@ -93,8 +113,19 @@ func StoreBlockFromMap(res map[uint64]common.DataWrap, db *gorm.DB) error {
 
 func StoreBlock(block *types.Block, db *gorm.DB) error {
 	dbBlock := cfxMysql.ConvertBlockWithoutAuthor(block)
-	authorName := cfxMysql.ConvertAuthorToString(block.Author)
+	authorName := cfxMysql.ConvertAddressToString(block.Author)
 	if err := cfxMysql.StoreBlock(db, dbBlock, authorName); err != nil {
+		return err
+	}
+	return nil
+}
+
+func StoreTransactionDetails(transactionDetail *types.TransactionDetail, db *gorm.DB) error {
+	dbTransactionDetail := cfxMysql.ConvertTransactionDetail(transactionDetail)
+	fromAddress := cfxMysql.ConvertAddressToString(&transactionDetail.From)
+	toAddress := cfxMysql.ConvertAddressToString(transactionDetail.To)
+	TxHash := cfxMysql.ConvertHashToString(transactionDetail.Hash)
+	if err := cfxMysql.StoreTransactionDetail(db, dbTransactionDetail, fromAddress, toAddress, TxHash); err != nil {
 		return err
 	}
 	return nil
