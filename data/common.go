@@ -20,5 +20,5 @@ type BlockNumberOrHash struct {
 
 type BlockData struct {
 	Block              *types.Block
-	TransactionDetails *types.TransactionDetail
+	TransactionDetails []*types.TransactionDetail
 }

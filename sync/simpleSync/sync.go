@@ -64,8 +64,8 @@ func NewSdk(getFunc data.GetFunc, node string) *Sdk {
 //	}
 //}
 
-func (s *Sdk) Get(w3client *web3go.Client, blockNumberOrHash data.BlockNumberOrHash) data.DataWrap {
-	result, err := s.GetFunc(w3client, blockNumberOrHash)
+func (s *Sdk) Get(blockNumberOrHash data.BlockNumberOrHash) data.DataWrap {
+	result, err := s.GetFunc(s.W3client, blockNumberOrHash)
 	s.Result[blockNumberOrHash.BlockNumber] = data.DataWrap{
 		Value: result,
 		Error: err,

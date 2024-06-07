@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ghodss/yaml"
+	"github.com/openweb3/web3go/types"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"log"
@@ -54,27 +55,37 @@ func InitDB(db *gorm.DB) error {
 	return nil
 }
 
-func StoreBlock(db *gorm.DB, block Block, authorName string) error {
-	author, err := findOrCreateAddress(db, authorName)
-	if err != nil {
-		return err
-	}
-	block.AuthorID = author.ID
-	return db.Create(&block).Error
-}
+func StoreBlockAndTransactions(db *gorm.DB, block *types.Block, transactions []*types.TransactionDetail) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		dbBlock := ConvertBlockWithoutAuthor(block)
+		authorName := ConvertAddressToString(block.Author)
+		author, err := findOrCreateAddress(tx, authorName)
+		if err != nil {
+			return err
+		}
+		dbBlock.AuthorID = author.ID
+		if err := tx.Create(&dbBlock).Error; err != nil {
+			return fmt.Errorf("failed to create block: %w", err)
+		}
+		for _, transactionDetail := range transactions {
+			dbTransactionDetail := ConvertTransactionDetail(transactionDetail)
+			from, err := findOrCreateAddress(tx, ConvertAddressToString(&transactionDetail.From))
+			if err != nil {
+				return err
+			}
+			to, err := findOrCreateAddress(tx, ConvertAddressToString(transactionDetail.To))
+			if err != nil {
+				return err
+			}
+			dbTransactionDetail.FromAddress = from.ID
+			dbTransactionDetail.ToAddress = to.ID
+			if err := tx.Create(&dbTransactionDetail).Error; err != nil {
+				return fmt.Errorf("failed to create transaction detail: %w", err)
+			}
+		}
 
-func StoreTransactionDetail(db *gorm.DB, transactionDetail TransactionDetail, fromAddress, toAddress string) error {
-	from, err := findOrCreateAddress(db, fromAddress)
-	if err != nil {
-		return err
-	}
-	to, err := findOrCreateAddress(db, toAddress)
-	if err != nil {
-		return err
-	}
-	transactionDetail.FromAddress = from.ID
-	transactionDetail.ToAddress = to.ID
-	return db.Create(&transactionDetail).Error
+		return nil
+	})
 }
 
 func findOrCreateAddress(db *gorm.DB, addressStr string) (Address, error) {
