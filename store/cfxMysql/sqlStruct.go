@@ -19,16 +19,17 @@ type Address struct {
 }
 
 type TransactionDetail struct {
-	ID          uint   `gorm:"primaryKey"`
-	BlockNumber uint   `json:"block_number"`
-	TxHash      string `json:"tx_hash"`
-	FromAddress uint   `json:"from_address"` // Address from address table as uint
-	ToAddress   uint   `json:"to_address"`   // Address from address table as uint
-	Value       int64  `json:"value"`
-	Gas         int64  `json:"price"`
-	GasPrice    int64  `json:"gas_price"`
-	Nonce       int64  `json:"nonce"`
-	Input       string `json:"input"`
+	ID               uint   `gorm:"primaryKey"`
+	BlockNumber      uint   `json:"block_number"`
+	TransactionIndex uint   `json:"transaction_index"`
+	TxHash           string `json:"tx_hash"`
+	FromAddress      uint   `json:"from_address"` // Address from address table as uint
+	ToAddress        uint   `json:"to_address"`   // Address from address table as uint
+	Value            int64  `json:"value"`
+	Gas              int64  `json:"price"`
+	GasPrice         int64  `json:"gas_price"`
+	Nonce            int64  `json:"nonce"`
+	Input            string `json:"input"`
 }
 
 type Hash struct {
@@ -45,15 +46,16 @@ func ConvertBlockWithoutAuthor(block *types.Block) Block {
 	}
 }
 
-func ConvertTransactionDetail(tx *types.TransactionDetail) TransactionDetail {
+func ConvertTransactionDetail(index uint, tx *types.TransactionDetail) TransactionDetail {
 	return TransactionDetail{
-		BlockNumber: uint(tx.BlockNumber.Uint64()),
-		TxHash:      tx.Hash.Hex(),
-		Value:       int64(tx.Value.Uint64()),
-		Gas:         int64(tx.Gas),
-		GasPrice:    int64(tx.GasPrice.Uint64()),
-		Nonce:       int64(tx.Nonce),
-		Input:       string(tx.Input),
+		BlockNumber:      uint(tx.BlockNumber.Uint64()),
+		TransactionIndex: index,
+		TxHash:           tx.Hash.Hex(),
+		Value:            int64(tx.Value.Uint64()),
+		Gas:              int64(tx.Gas),
+		GasPrice:         int64(tx.GasPrice.Uint64()),
+		Nonce:            int64(tx.Nonce),
+		Input:            string(tx.Input),
 	}
 }
 

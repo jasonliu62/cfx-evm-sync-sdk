@@ -76,9 +76,14 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 					continue
 				}
 				fmt.Printf("We have block %d.", currentBlock)
-				err = cfxMysql.StoreBlockAndTransactions(db, result.Value.(data.BlockData).Block, result.Value.(data.BlockData).TransactionDetails)
+				blkDataSQL, err := convertBlockAndTransactionDetails(result.Value.(data.BlockData).Block, result.Value.(data.BlockData).TransactionDetails, db)
 				if err != nil {
-					log.Printf("Failed to store block %d and transactions: %v", currentBlock, err)
+					log.Printf("Failed to convert blockData %d: %v", currentBlock, err)
+					return
+				}
+				err = cfxMysql.StoreBlockAndTransactions(db, blkDataSQL)
+				if err != nil {
+					log.Printf("Failed to store blockData %d to MySQL: %v", currentBlock, err)
 					return
 				}
 				break
@@ -88,18 +93,31 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 	}
 }
 
-//func StoreBlockFromMap(res map[uint64]data.DataWrap, db *gorm.DB) error {
-//	for key, dataWrap := range res {
-//		block, ok := dataWrap.Value.(*types.Block)
-//		if !ok {
-//			return fmt.Errorf("invalid type for block at key %d", key)
-//		}
-//		// 转换并存储块数据
-//		dbBlock := cfxMysql.ConvertBlockWithoutAuthor(block)
-//		authorName := cfxMysql.ConvertAddressToString(block.Author)
-//		if err := cfxMysql.StoreBlock(db, dbBlock, authorName); err != nil {
-//			return err
-//		}
-//	}
-//	return nil
-//}
+func convertBlockAndTransactionDetails(block *types.Block, transactionDetails []*types.TransactionDetail, db *gorm.DB) (data.BlockDataMySQL, error) {
+	dbBlock := cfxMysql.ConvertBlockWithoutAuthor(block)
+	authorName := cfxMysql.ConvertAddressToString(block.Author)
+	author, err := cfxMysql.FindOrCreateAddress(db, authorName)
+	if err != nil {
+		return data.BlockDataMySQL{}, fmt.Errorf("failed to find or create author address: %w", err)
+	}
+	dbBlock.AuthorID = author.ID
+	var dbTransactionDetailList []cfxMysql.TransactionDetail
+	for index, transactionDetail := range transactionDetails {
+		dbTransactionDetail := cfxMysql.ConvertTransactionDetail(uint(index), transactionDetail)
+		from, err := cfxMysql.FindOrCreateAddress(db, cfxMysql.ConvertAddressToString(&transactionDetail.From))
+		if err != nil {
+			return data.BlockDataMySQL{}, fmt.Errorf("failed to find or create from address: %w", err)
+		}
+		to, err := cfxMysql.FindOrCreateAddress(db, cfxMysql.ConvertAddressToString(transactionDetail.To))
+		if err != nil {
+			return data.BlockDataMySQL{}, fmt.Errorf("failed to find or create to address: %w", err)
+		}
+		dbTransactionDetail.FromAddress = from.ID
+		dbTransactionDetail.ToAddress = to.ID
+		dbTransactionDetailList = append(dbTransactionDetailList, dbTransactionDetail)
+	}
+	return data.BlockDataMySQL{
+		Block:              dbBlock,
+		TransactionDetails: dbTransactionDetailList,
+	}, err
+}

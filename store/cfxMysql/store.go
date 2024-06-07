@@ -1,10 +1,10 @@
 package cfxMysql
 
 import (
+	"cfx-evm-sync-sdk/data"
 	"errors"
 	"fmt"
 	"github.com/ghodss/yaml"
-	"github.com/openweb3/web3go/types"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"log"
@@ -55,40 +55,19 @@ func InitDB(db *gorm.DB) error {
 	return nil
 }
 
-func StoreBlockAndTransactions(db *gorm.DB, block *types.Block, transactions []*types.TransactionDetail) error {
+func StoreBlockAndTransactions(db *gorm.DB, blockDataMySQL data.BlockDataMySQL) error {
 	return db.Transaction(func(tx *gorm.DB) error {
-		dbBlock := ConvertBlockWithoutAuthor(block)
-		authorName := ConvertAddressToString(block.Author)
-		author, err := findOrCreateAddress(tx, authorName)
-		if err != nil {
-			return err
-		}
-		dbBlock.AuthorID = author.ID
-		if err := tx.Create(&dbBlock).Error; err != nil {
+		if err := tx.Create(&blockDataMySQL.Block).Error; err != nil {
 			return fmt.Errorf("failed to create block: %w", err)
 		}
-		for _, transactionDetail := range transactions {
-			dbTransactionDetail := ConvertTransactionDetail(transactionDetail)
-			from, err := findOrCreateAddress(tx, ConvertAddressToString(&transactionDetail.From))
-			if err != nil {
-				return err
-			}
-			to, err := findOrCreateAddress(tx, ConvertAddressToString(transactionDetail.To))
-			if err != nil {
-				return err
-			}
-			dbTransactionDetail.FromAddress = from.ID
-			dbTransactionDetail.ToAddress = to.ID
-			if err := tx.Create(&dbTransactionDetail).Error; err != nil {
-				return fmt.Errorf("failed to create transaction detail: %w", err)
-			}
+		if err := tx.Create(&blockDataMySQL.TransactionDetails).Error; err != nil {
+			return fmt.Errorf("failed to create transaction details: %w", err)
 		}
-
 		return nil
 	})
 }
 
-func findOrCreateAddress(db *gorm.DB, addressStr string) (Address, error) {
+func FindOrCreateAddress(db *gorm.DB, addressStr string) (Address, error) {
 	var address Address
 	if err := db.Where("address = ?", addressStr).First(&address).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

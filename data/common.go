@@ -1,6 +1,7 @@
 package data
 
 import (
+	"cfx-evm-sync-sdk/store/cfxMysql"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/openweb3/web3go"
 	"github.com/openweb3/web3go/types"
@@ -21,4 +22,9 @@ type BlockNumberOrHash struct {
 type BlockData struct {
 	Block              *types.Block
 	TransactionDetails []*types.TransactionDetail
+}
+
+type BlockDataMySQL struct {
+	Block              cfxMysql.Block
+	TransactionDetails []cfxMysql.TransactionDetail
 }
