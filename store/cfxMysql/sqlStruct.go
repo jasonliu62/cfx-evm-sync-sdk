@@ -19,8 +19,9 @@ type Address struct {
 }
 
 type TransactionDetail struct {
-	BlockNumber uint   `gorm:"primaryKey"`
-	TxHash      uint   `json:"tx_hash"`      // Hash from hash table as uint
+	ID          uint   `gorm:"primaryKey"`
+	BlockNumber uint   `json:"block_number"`
+	TxHash      string `json:"tx_hash"`
 	FromAddress uint   `json:"from_address"` // Address from address table as uint
 	ToAddress   uint   `json:"to_address"`   // Address from address table as uint
 	Value       int64  `json:"value"`
@@ -47,6 +48,7 @@ func ConvertBlockWithoutAuthor(block *types.Block) Block {
 func ConvertTransactionDetail(tx *types.TransactionDetail) TransactionDetail {
 	return TransactionDetail{
 		BlockNumber: uint(tx.BlockNumber.Uint64()),
+		TxHash:      tx.Hash.Hex(),
 		Value:       int64(tx.Value.Uint64()),
 		Gas:         int64(tx.Gas),
 		GasPrice:    int64(tx.GasPrice.Uint64()),

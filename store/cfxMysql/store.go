@@ -47,15 +47,7 @@ func NewDB(config *Config) (*gorm.DB, error) {
 }
 
 func InitDB(db *gorm.DB) error {
-	err := db.AutoMigrate(&Block{})
-	if err != nil {
-		return err
-	}
-	err = db.AutoMigrate(&Address{})
-	if err != nil {
-		return err
-	}
-	err = db.AutoMigrate(&TransactionDetail{})
+	err := db.AutoMigrate(&Block{}, &Address{}, &TransactionDetail{})
 	if err != nil {
 		return err
 	}
@@ -63,76 +55,42 @@ func InitDB(db *gorm.DB) error {
 }
 
 func StoreBlock(db *gorm.DB, block Block, authorName string) error {
-	var author Address
-
-	// Check if the author exists
-	if err := db.Where("address = ?", authorName).First(&author).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Author not found, create a new author
-			author = Address{Address: authorName}
-			if err = db.Create(&author).Error; err != nil {
-				return fmt.Errorf("failed to create author: %w", err)
-			}
-		} else {
-			return fmt.Errorf("failed to query author: %w", err)
-		}
+	author, err := findOrCreateAddress(db, authorName)
+	if err != nil {
+		return err
 	}
 	block.AuthorID = author.ID
 	return db.Create(&block).Error
 }
 
-func GetBlockHashByNumber(db *gorm.DB, blockNumber uint) (string, error) {
-	var block Block
-	result := db.Where("block_number = ?", blockNumber).First(&block)
-	if result.Error != nil {
-		return "", result.Error
+func StoreTransactionDetail(db *gorm.DB, transactionDetail TransactionDetail, fromAddress, toAddress string) error {
+	from, err := findOrCreateAddress(db, fromAddress)
+	if err != nil {
+		return err
 	}
-	return block.Hash, nil
-}
-
-func StoreTransactionDetail(db *gorm.DB, transactionDetail TransactionDetail, fromAdress, toAdress, TxHash string) error {
-	var (
-		from Address
-		to   Address
-		hash Hash
-	)
-	if err := db.Where("address = ?", fromAdress).First(&from).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Author not found, create a new author
-			from = Address{Address: fromAdress}
-			if err = db.Create(&from).Error; err != nil {
-				return fmt.Errorf("failed to create fromAddress: %w", err)
-			}
-		} else {
-			return fmt.Errorf("failed to query fromAddress: %w", err)
-		}
-	}
-	if err := db.Where("address = ?", toAdress).First(&to).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Author not found, create a new author
-			to = Address{Address: toAdress}
-			if err = db.Create(&to).Error; err != nil {
-				return fmt.Errorf("failed to create toAddress: %w", err)
-			}
-		} else {
-			return fmt.Errorf("failed to query toAddress: %w", err)
-		}
-	}
-	if err := db.Where("hash = ?", TxHash).First(&hash).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Author not found, create a new author
-			hash = Hash{Hash: TxHash}
-			if err = db.Create(&hash).Error; err != nil {
-				return fmt.Errorf("failed to create Hash: %w", err)
-			}
-		} else {
-			return fmt.Errorf("failed to query Hash: %w", err)
-		}
+	to, err := findOrCreateAddress(db, toAddress)
+	if err != nil {
+		return err
 	}
 	transactionDetail.FromAddress = from.ID
 	transactionDetail.ToAddress = to.ID
-	transactionDetail.TxHash = hash.ID
 	return db.Create(&transactionDetail).Error
+}
+
+func findOrCreateAddress(db *gorm.DB, addressStr string) (Address, error) {
+	var address Address
+	if err := db.Where("address = ?", addressStr).First(&address).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Address not found, create a new address
+			address = Address{Address: addressStr}
+			if err = db.Create(&address).Error; err != nil {
+				return address, fmt.Errorf("failed to create address: %w", err)
+			}
+		} else {
+			return address, fmt.Errorf("failed to query address: %w", err)
+		}
+	}
+	return address, nil
 }
 
 func Start() *gorm.DB {

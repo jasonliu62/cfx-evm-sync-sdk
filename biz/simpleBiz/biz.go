@@ -24,24 +24,23 @@ import (
 //	}
 //	s := simpleSync.NewSdk(GetFunc)
 //	w3client := simpleSync.GetRpcClient(node)
-//	return s.SimpleGet(w3client, startBlock, endBlock)
+//	return s.SimpleGet(startBlock, endBlock)
 //
 //}
 
 func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
-	w3client := simpleSync.GetRpcClient(node)
 	GetFuncBlock := func(w3client *web3go.Client, blockNumberOrHash data.BlockNumberOrHash) (interface{}, error) {
 		blockNumberUint := blockNumberOrHash.BlockNumber
 		block, err := w3client.Eth.BlockByNumber(types.BlockNumber(blockNumberUint), false)
-		return block, err
+		blockData := data.BlockData{
+			Block: block,
+		}
+		blockHash := block.Hash
+		transactionDetail, err := w3client.Eth.TransactionByHash(blockHash)
+		blockData.TransactionDetails = transactionDetail
+		return blockData, err
 	}
-	GetFuncTrans := func(w3client *web3go.Client, blockNumberOrHash data.BlockNumberOrHash) (interface{}, error) {
-		blockHashCommon := blockNumberOrHash.Hash
-		block, err := w3client.Eth.TransactionByHash(blockHashCommon)
-		return block, err
-	}
-	s := simpleSync.NewSdk(GetFuncBlock)
-	s2 := simpleSync.NewSdk(GetFuncTrans)
+	s := simpleSync.NewSdk(GetFuncBlock, node)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	sigs := make(chan os.Signal)
@@ -65,7 +64,7 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 				blockNumberOrHash := data.BlockNumberOrHash{
 					BlockNumber: currentBlock,
 				}
-				result := s.Get(w3client, blockNumberOrHash)
+				result := s.Get(s.W3client, blockNumberOrHash)
 				err := result.Error
 				if err != nil {
 					log.Println("Get err:", err)
@@ -73,20 +72,15 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 					continue
 				}
 				fmt.Printf("We have block %d.", currentBlock)
-				err = StoreBlock(result.Value.(*types.Block), db)
+				err = StoreBlock(result.Value.(data.BlockData).Block, db)
 				if err != nil {
 					log.Printf("Failed to store block %d: %v", currentBlock, err)
 					return
 				}
-
-				hash := result.Value.(*types.Block).Hash
-				blockNumberOrHash.Hash = hash
-				result = s2.Get(w3client, blockNumberOrHash)
-				err = result.Error
+				err = StoreTransactionDetails(result.Value.(data.BlockData).TransactionDetails, db)
 				if err != nil {
-					log.Println("Get err:", err)
-					time.Sleep(1 * time.Second)
-					continue
+					log.Printf("Failed to store transaction on block %d: %v", currentBlock, err)
+					return
 				}
 				break
 			}
@@ -124,8 +118,7 @@ func StoreTransactionDetails(transactionDetail *types.TransactionDetail, db *gor
 	dbTransactionDetail := cfxMysql.ConvertTransactionDetail(transactionDetail)
 	fromAddress := cfxMysql.ConvertAddressToString(&transactionDetail.From)
 	toAddress := cfxMysql.ConvertAddressToString(transactionDetail.To)
-	TxHash := cfxMysql.ConvertHashToString(transactionDetail.Hash)
-	if err := cfxMysql.StoreTransactionDetail(db, dbTransactionDetail, fromAddress, toAddress, TxHash); err != nil {
+	if err := cfxMysql.StoreTransactionDetail(db, dbTransactionDetail, fromAddress, toAddress); err != nil {
 		return err
 	}
 	return nil

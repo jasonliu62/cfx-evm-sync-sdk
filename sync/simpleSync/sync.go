@@ -7,16 +7,16 @@ import (
 )
 
 type Sdk struct {
-	// w3client *web3go.Client
-	Result  map[uint64]data.DataWrap
-	GetFunc data.GetFunc
+	W3client *web3go.Client
+	Result   map[uint64]data.DataWrap
+	GetFunc  data.GetFunc
 }
 
-func NewSdk(getFunc data.GetFunc) *Sdk {
+func NewSdk(getFunc data.GetFunc, node string) *Sdk {
 	return &Sdk{
-		// w3client: rpc.NewClient(node),
-		Result:  make(map[uint64]data.DataWrap),
-		GetFunc: getFunc,
+		W3client: rpc.NewClient(node),
+		Result:   make(map[uint64]data.DataWrap),
+		GetFunc:  getFunc,
 	}
 }
 
@@ -73,6 +73,6 @@ func (s *Sdk) Get(w3client *web3go.Client, blockNumberOrHash data.BlockNumberOrH
 	return s.Result[blockNumberOrHash.BlockNumber]
 }
 
-func GetRpcClient(node string) *web3go.Client {
-	return rpc.NewClient(node)
+func (s *Sdk) GetRpcClient() *web3go.Client {
+	return s.W3client
 }
