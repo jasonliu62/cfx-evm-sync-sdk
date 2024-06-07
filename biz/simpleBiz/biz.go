@@ -78,12 +78,7 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 				fmt.Printf("We have block %d.", currentBlock)
 				err = cfxMysql.StoreBlockAndTransactions(db, result.Value.(data.BlockData).Block, result.Value.(data.BlockData).TransactionDetails)
 				if err != nil {
-					log.Printf("Failed to store block %d: %v", currentBlock, err)
-					return
-				}
-				// err = StoreTransactionDetails(result.Value.(data.BlockData).TransactionDetails, db)
-				if err != nil {
-					log.Printf("Failed to store transaction on block %d: %v", currentBlock, err)
+					log.Printf("Failed to store block %d and transactions: %v", currentBlock, err)
 					return
 				}
 				break
