@@ -56,7 +56,10 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 		cancel()
 	}()
 
-	currentBlock := startBlock
+	currentBlock, err := cfxMysql.GetInitBlockNumber(db, startBlock)
+	if err != nil {
+		log.Println("GetInitBlockNumber err:", err)
+	}
 	//s.ContinueGet(ctx, startBlock, GetFunc)
 	for {
 		select {

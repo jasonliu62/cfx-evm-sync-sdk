@@ -85,6 +85,44 @@ func FindOrCreateAddress(db *gorm.DB, addressStr string) (Address, error) {
 	return address, nil
 }
 
+func getLatestBlock(db *gorm.DB) (Block, error) {
+	var block Block
+	if err := db.Order("block_number desc").First(&block).Error; err != nil {
+		return block, fmt.Errorf("failed to get latest block: %w", err)
+	}
+	return block, nil
+}
+
+func checkBlockExists(db *gorm.DB, blockNumber uint) (bool, error) {
+	var block Block
+	if err := db.First(&block, "block_number = ?", blockNumber).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to check if block exists: %w", err)
+	}
+	return true, nil
+}
+
+func GetInitBlockNumber(db *gorm.DB, inputBlockNumber uint64) (uint64, error) {
+	exists, err := checkBlockExists(db, uint(inputBlockNumber))
+	if err != nil {
+		fmt.Printf("failed to check if block exists: %v\n", err)
+		return 0, err
+	}
+	if exists {
+		latestBlock, err := getLatestBlock(db)
+		if err != nil {
+			fmt.Printf("failed to get latest block: %v\n", err)
+			return 0, err
+		} else {
+			return uint64(latestBlock.BlockNumber), nil
+		}
+	} else {
+		return inputBlockNumber, nil
+	}
+}
+
 func Start() *gorm.DB {
 	// Load configuration
 	config, err := LoadConfig("./store/cfxMysql/config.yaml")
