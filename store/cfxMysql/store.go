@@ -1,7 +1,6 @@
 package cfxMysql
 
 import (
-	"cfx-evm-sync-sdk/data"
 	"errors"
 	"fmt"
 	"github.com/ghodss/yaml"
@@ -55,10 +54,13 @@ func InitDB(db *gorm.DB) error {
 	return nil
 }
 
-func StoreBlockAndTransactions(db *gorm.DB, blockDataMySQL data.BlockDataMySQL) error {
+func StoreBlockAndTransactions(db *gorm.DB, blockDataMySQL BlockDataMySQL) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&blockDataMySQL.Block).Error; err != nil {
 			return fmt.Errorf("failed to create block: %w", err)
+		}
+		if len(blockDataMySQL.TransactionDetails) == 0 {
+			return nil
 		}
 		if err := tx.Create(&blockDataMySQL.TransactionDetails).Error; err != nil {
 			return fmt.Errorf("failed to create transaction details: %w", err)

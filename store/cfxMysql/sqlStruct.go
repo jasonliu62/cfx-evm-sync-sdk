@@ -59,6 +59,11 @@ func ConvertTransactionDetail(index uint, tx *types.TransactionDetail) Transacti
 	}
 }
 
+type BlockDataMySQL struct {
+	Block              Block
+	TransactionDetails []TransactionDetail
+}
+
 func ConvertAddressToString(author *common.Address) string {
 	return author.Hex()
 }

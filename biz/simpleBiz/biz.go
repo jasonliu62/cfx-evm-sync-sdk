@@ -93,12 +93,12 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 	}
 }
 
-func convertBlockAndTransactionDetails(block *types.Block, transactionDetails []*types.TransactionDetail, db *gorm.DB) (data.BlockDataMySQL, error) {
+func convertBlockAndTransactionDetails(block *types.Block, transactionDetails []*types.TransactionDetail, db *gorm.DB) (cfxMysql.BlockDataMySQL, error) {
 	dbBlock := cfxMysql.ConvertBlockWithoutAuthor(block)
 	authorName := cfxMysql.ConvertAddressToString(block.Author)
 	author, err := cfxMysql.FindOrCreateAddress(db, authorName)
 	if err != nil {
-		return data.BlockDataMySQL{}, fmt.Errorf("failed to find or create author address: %w", err)
+		return cfxMysql.BlockDataMySQL{}, fmt.Errorf("failed to find or create author address: %w", err)
 	}
 	dbBlock.AuthorID = author.ID
 	var dbTransactionDetailList []cfxMysql.TransactionDetail
@@ -106,17 +106,17 @@ func convertBlockAndTransactionDetails(block *types.Block, transactionDetails []
 		dbTransactionDetail := cfxMysql.ConvertTransactionDetail(uint(index), transactionDetail)
 		from, err := cfxMysql.FindOrCreateAddress(db, cfxMysql.ConvertAddressToString(&transactionDetail.From))
 		if err != nil {
-			return data.BlockDataMySQL{}, fmt.Errorf("failed to find or create from address: %w", err)
+			return cfxMysql.BlockDataMySQL{}, fmt.Errorf("failed to find or create from address: %w", err)
 		}
 		to, err := cfxMysql.FindOrCreateAddress(db, cfxMysql.ConvertAddressToString(transactionDetail.To))
 		if err != nil {
-			return data.BlockDataMySQL{}, fmt.Errorf("failed to find or create to address: %w", err)
+			return cfxMysql.BlockDataMySQL{}, fmt.Errorf("failed to find or create to address: %w", err)
 		}
 		dbTransactionDetail.FromAddress = from.ID
 		dbTransactionDetail.ToAddress = to.ID
 		dbTransactionDetailList = append(dbTransactionDetailList, dbTransactionDetail)
 	}
-	return data.BlockDataMySQL{
+	return cfxMysql.BlockDataMySQL{
 		Block:              dbBlock,
 		TransactionDetails: dbTransactionDetailList,
 	}, err
