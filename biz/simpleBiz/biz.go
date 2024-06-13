@@ -135,11 +135,13 @@ func convertBlockAndTransactionDetails(block *types.Block, transactionDetails []
 		topics := l.Topics
 		dbLog := cfxMysql.ConvertLogWithoutTopic(l)
 		topic0 := l.Topics[0]
-		t0Hash, err := cfxMysql.FindOrCreateHash(db, topic0.Hex())
+		t0Hash, err := cfxMysql.FindOrCreateHash(db, cfxMysql.ConvertHashToString(topic0))
+		address, err := cfxMysql.FindOrCreateAddress(db, cfxMysql.ConvertAddressToString(&l.Address))
 		if err != nil {
 			return cfxMysql.BlockDataMySQL{}, fmt.Errorf("failed to find or create author address: %w", err)
 		}
 		dbLog.Topic0 = t0Hash.ID
+		dbLog.Address = address.ID
 		dbLogList = append(dbLogList, cfxMysql.ConvertLogTopics(dbLog, topics))
 	}
 	return cfxMysql.BlockDataMySQL{

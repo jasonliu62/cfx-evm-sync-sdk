@@ -39,6 +39,7 @@ type Hash struct {
 
 type Log struct {
 	ID          uint   `gorm:"primaryKey;autoIncrement"`
+	Address     uint   `json:"address"`
 	BlockNumber uint64 `json:"block_number"`
 	Data        []byte `json:"data"`
 	LogIndex    uint   `json:"log_index"`
