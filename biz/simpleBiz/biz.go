@@ -35,12 +35,21 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 		blockData := data.BlockData{
 			Block:              block,
 			TransactionDetails: []*types.TransactionDetail{},
+			Logs:               []*types.Log{},
 		}
 		blockHashList := block.Transactions.Hashes()
 		var transactionDetail *types.TransactionDetail
 		for _, hash := range blockHashList {
 			transactionDetail, err = w3client.Eth.TransactionByHash(hash)
 			blockData.TransactionDetails = append(blockData.TransactionDetails, transactionDetail)
+		}
+		blkNumOrHash := types.BlockNumberOrHashWithNumber(types.BlockNumber(blockNumberUint))
+		receipts, err := w3client.Eth.BlockReceipts(&blkNumOrHash)
+		for _, receipt := range receipts {
+			if receipt.Logs == nil {
+				continue
+			}
+			blockData.Logs = append(blockData.Logs, receipt.Logs...)
 		}
 		return blockData, err
 	}
@@ -79,12 +88,13 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 					continue
 				}
 				fmt.Printf("We have block %d.", currentBlock)
-				blkDataSQL, err := convertBlockAndTransactionDetails(result.Value.(data.BlockData).Block, result.Value.(data.BlockData).TransactionDetails, db)
+				blkDataSQL, err := convertBlockAndTransactionDetails(result.Value.(data.BlockData).Block, result.Value.(data.BlockData).TransactionDetails,
+					result.Value.(data.BlockData).Logs, db)
 				if err != nil {
 					log.Printf("Failed to convert blockData %d: %v", currentBlock, err)
 					return
 				}
-				err = cfxMysql.StoreBlockAndTransactions(db, blkDataSQL)
+				err = cfxMysql.StoreBlockTransactionsAndLogs(db, blkDataSQL)
 				if err != nil {
 					log.Printf("Failed to store blockData %d to MySQL: %v", currentBlock, err)
 					return
@@ -96,7 +106,8 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 	}
 }
 
-func convertBlockAndTransactionDetails(block *types.Block, transactionDetails []*types.TransactionDetail, db *gorm.DB) (cfxMysql.BlockDataMySQL, error) {
+func convertBlockAndTransactionDetails(block *types.Block, transactionDetails []*types.TransactionDetail,
+	logs []*types.Log, db *gorm.DB) (cfxMysql.BlockDataMySQL, error) {
 	dbBlock := cfxMysql.ConvertBlockWithoutAuthor(block)
 	authorName := cfxMysql.ConvertAddressToString(block.Author)
 	author, err := cfxMysql.FindOrCreateAddress(db, authorName)
@@ -105,6 +116,7 @@ func convertBlockAndTransactionDetails(block *types.Block, transactionDetails []
 	}
 	dbBlock.AuthorID = author.ID
 	var dbTransactionDetailList []cfxMysql.TransactionDetail
+	var dbLogList []cfxMysql.Log
 	for index, transactionDetail := range transactionDetails {
 		dbTransactionDetail := cfxMysql.ConvertTransactionDetail(uint(index), transactionDetail)
 		from, err := cfxMysql.FindOrCreateAddress(db, cfxMysql.ConvertAddressToString(&transactionDetail.From))
@@ -119,8 +131,15 @@ func convertBlockAndTransactionDetails(block *types.Block, transactionDetails []
 		dbTransactionDetail.ToAddress = to.ID
 		dbTransactionDetailList = append(dbTransactionDetailList, dbTransactionDetail)
 	}
+	for _, l := range logs {
+		for i, topic := range l.Topics {
+			dbLog := cfxMysql.ConvertLog(l, uint(i), topic)
+			dbLogList = append(dbLogList, dbLog)
+		}
+	}
 	return cfxMysql.BlockDataMySQL{
 		Block:              dbBlock,
 		TransactionDetails: dbTransactionDetailList,
+		Logs:               dbLogList,
 	}, err
 }

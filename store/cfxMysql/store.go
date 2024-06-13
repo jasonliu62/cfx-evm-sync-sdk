@@ -47,14 +47,14 @@ func NewDB(config *Config) (*gorm.DB, error) {
 }
 
 func InitDB(db *gorm.DB) error {
-	err := db.AutoMigrate(&Block{}, &Address{}, &TransactionDetail{})
+	err := db.AutoMigrate(&Block{}, &Address{}, &TransactionDetail{}, &Log{})
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func StoreBlockAndTransactions(db *gorm.DB, blockDataMySQL BlockDataMySQL) error {
+func StoreBlockTransactionsAndLogs(db *gorm.DB, blockDataMySQL BlockDataMySQL) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&blockDataMySQL.Block).Error; err != nil {
 			return fmt.Errorf("failed to create block: %w", err)
@@ -64,6 +64,12 @@ func StoreBlockAndTransactions(db *gorm.DB, blockDataMySQL BlockDataMySQL) error
 		}
 		if err := tx.Create(&blockDataMySQL.TransactionDetails).Error; err != nil {
 			return fmt.Errorf("failed to create transaction details: %w", err)
+		}
+		if len(blockDataMySQL.Logs) == 0 {
+			return nil
+		}
+		if err := tx.Create(&blockDataMySQL.Logs).Error; err != nil {
+			return fmt.Errorf("failed to create logs: %w", err)
 		}
 		return nil
 	})

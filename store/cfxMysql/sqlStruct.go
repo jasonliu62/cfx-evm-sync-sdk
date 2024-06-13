@@ -37,6 +37,27 @@ type Hash struct {
 	Hash string `gorm:"index" json:"tx_hash"`
 }
 
+type Log struct {
+	ID          uint   `gorm:"primaryKey;autoIncrement"`
+	BlockNumber uint64 `json:"block_number"`
+	Data        []byte `json:"data"`
+	LogIndex    uint   `json:"log_index"`
+	Topic       string `json:"topics"`
+	TxHash      string `json:"tx_hash"`
+	TopicsIndex uint   `json:"topics_index"`
+}
+
+func ConvertLog(log *types.Log, topicsIndex uint, topic common.Hash) Log {
+	return Log{
+		BlockNumber: log.BlockNumber,
+		Data:        log.Data,
+		LogIndex:    log.Index,
+		Topic:       topic.Hex(),
+		TxHash:      log.TxHash.Hex(),
+		TopicsIndex: topicsIndex,
+	}
+}
+
 func ConvertBlockWithoutAuthor(block *types.Block) Block {
 	return Block{
 		BlockNumber: uint(block.Number.Uint64()),
@@ -62,6 +83,7 @@ func ConvertTransactionDetail(index uint, tx *types.TransactionDetail) Transacti
 type BlockDataMySQL struct {
 	Block              Block
 	TransactionDetails []TransactionDetail
+	Logs               []Log
 }
 
 func ConvertAddressToString(author *common.Address) string {
