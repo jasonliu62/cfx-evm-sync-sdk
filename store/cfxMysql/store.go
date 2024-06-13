@@ -116,7 +116,7 @@ func GetInitBlockNumber(db *gorm.DB, inputBlockNumber uint64) (uint64, error) {
 			fmt.Printf("failed to get latest block: %v\n", err)
 			return 0, err
 		} else {
-			return uint64(latestBlock.BlockNumber), nil
+			return uint64(latestBlock.BlockNumber + 1), nil
 		}
 	} else {
 		return inputBlockNumber, nil

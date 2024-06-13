@@ -19,7 +19,7 @@ type Address struct {
 }
 
 type TransactionDetail struct {
-	ID               uint   `gorm:"primaryKey"`
+	ID               uint   `gorm:"primaryKey;autoIncrement"`
 	BlockNumber      uint   `json:"block_number"`
 	TransactionIndex uint   `json:"transaction_index"`
 	TxHash           string `json:"tx_hash"`
@@ -29,7 +29,7 @@ type TransactionDetail struct {
 	Gas              int64  `json:"price"`
 	GasPrice         int64  `json:"gas_price"`
 	Nonce            int64  `json:"nonce"`
-	Input            string `json:"input"`
+	Input            []byte `json:"input"`
 }
 
 type Hash struct {
@@ -55,7 +55,7 @@ func ConvertTransactionDetail(index uint, tx *types.TransactionDetail) Transacti
 		Gas:              int64(tx.Gas),
 		GasPrice:         int64(tx.GasPrice.Uint64()),
 		Nonce:            int64(tx.Nonce),
-		Input:            string(tx.Input),
+		Input:            tx.Input,
 	}
 }
 
