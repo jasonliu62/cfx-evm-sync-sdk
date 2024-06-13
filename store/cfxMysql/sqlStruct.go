@@ -42,20 +42,33 @@ type Log struct {
 	BlockNumber uint64 `json:"block_number"`
 	Data        []byte `json:"data"`
 	LogIndex    uint   `json:"log_index"`
-	Topic       string `json:"topics"`
-	TxHash      string `json:"tx_hash"`
-	TopicsIndex uint   `json:"topics_index"`
+	Topic0      uint   `json:"topics0"`
+	Topic1      string `json:"topics1"`
+	Topic2      string `json:"topics2"`
+	Topic3      string `json:"topics3"`
+	TxIndex     uint   `json:"transactionIndex"`
 }
 
-func ConvertLog(log *types.Log, topicsIndex uint, topic common.Hash) Log {
+func ConvertLogWithoutTopic(log *types.Log) Log {
 	return Log{
 		BlockNumber: log.BlockNumber,
 		Data:        log.Data,
 		LogIndex:    log.Index,
-		Topic:       topic.Hex(),
-		TxHash:      log.TxHash.Hex(),
-		TopicsIndex: topicsIndex,
+		TxIndex:     log.TxIndex,
 	}
+}
+
+func ConvertLogTopics(log Log, topics []common.Hash) Log {
+	if len(topics) > 1 {
+		log.Topic1 = topics[1].Hex()
+	}
+	if len(topics) > 2 {
+		log.Topic2 = topics[2].Hex()
+	}
+	if len(topics) > 3 {
+		log.Topic3 = topics[3].Hex()
+	}
+	return log
 }
 
 func ConvertBlockWithoutAuthor(block *types.Block) Block {

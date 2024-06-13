@@ -23,3 +23,10 @@ type BlockData struct {
 	TransactionDetails []*types.TransactionDetail
 	Logs               []*types.Log
 }
+
+type LogTopicWrap struct {
+	Topic0 string
+	Topic1 string
+	Topic2 string
+	Topic3 string
+}

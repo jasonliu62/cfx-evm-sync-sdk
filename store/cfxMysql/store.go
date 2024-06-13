@@ -47,7 +47,7 @@ func NewDB(config *Config) (*gorm.DB, error) {
 }
 
 func InitDB(db *gorm.DB) error {
-	err := db.AutoMigrate(&Block{}, &Address{}, &TransactionDetail{}, &Log{})
+	err := db.AutoMigrate(&Block{}, &Address{}, &TransactionDetail{}, &Log{}, &Hash{})
 	if err != nil {
 		return err
 	}
@@ -89,6 +89,22 @@ func FindOrCreateAddress(db *gorm.DB, addressStr string) (Address, error) {
 		}
 	}
 	return address, nil
+}
+
+func FindOrCreateHash(db *gorm.DB, hashStr string) (Hash, error) {
+	var hash Hash
+	if err := db.Where("hash = ?", hashStr).First(&hash).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Hash not found, create a new hash
+			hash = Hash{Hash: hashStr}
+			if err = db.Create(&hash).Error; err != nil {
+				return hash, fmt.Errorf("failed to create hash: %w", err)
+			}
+		} else {
+			return hash, fmt.Errorf("failed to query hash: %w", err)
+		}
+	}
+	return hash, nil
 }
 
 func getLatestBlock(db *gorm.DB) (Block, error) {

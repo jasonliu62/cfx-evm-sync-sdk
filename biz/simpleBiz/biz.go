@@ -42,10 +42,10 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 		for _, hash := range blockHashList {
 			transactionDetail, err = w3client.Eth.TransactionByHash(hash)
 			blockData.TransactionDetails = append(blockData.TransactionDetails, transactionDetail)
-		}
-		blkNumOrHash := types.BlockNumberOrHashWithNumber(types.BlockNumber(blockNumberUint))
-		receipts, err := w3client.Eth.BlockReceipts(&blkNumOrHash)
-		for _, receipt := range receipts {
+			txHash := transactionDetail.Hash
+			receipt, err := w3client.Eth.TransactionReceipt(txHash)
+			if err != nil {
+			}
 			if receipt.Logs == nil {
 				continue
 			}
@@ -132,10 +132,15 @@ func convertBlockAndTransactionDetails(block *types.Block, transactionDetails []
 		dbTransactionDetailList = append(dbTransactionDetailList, dbTransactionDetail)
 	}
 	for _, l := range logs {
-		for i, topic := range l.Topics {
-			dbLog := cfxMysql.ConvertLog(l, uint(i), topic)
-			dbLogList = append(dbLogList, dbLog)
+		topics := l.Topics
+		dbLog := cfxMysql.ConvertLogWithoutTopic(l)
+		topic0 := l.Topics[0]
+		t0Hash, err := cfxMysql.FindOrCreateHash(db, topic0.Hex())
+		if err != nil {
+			return cfxMysql.BlockDataMySQL{}, fmt.Errorf("failed to find or create author address: %w", err)
 		}
+		dbLog.Topic0 = t0Hash.ID
+		dbLogList = append(dbLogList, cfxMysql.ConvertLogTopics(dbLog, topics))
 	}
 	return cfxMysql.BlockDataMySQL{
 		Block:              dbBlock,
