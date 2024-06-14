@@ -22,6 +22,7 @@ type BlockData struct {
 	Block              *types.Block
 	TransactionDetails []*types.TransactionDetail
 	Logs               []*types.Log
+	Erc20Transfer      []*types.Log
 }
 
 type LogTopicWrap struct {

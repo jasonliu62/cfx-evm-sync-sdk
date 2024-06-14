@@ -1,11 +1,14 @@
 package simpleBiz
 
 import (
+	erc20 "cfx-evm-sync-sdk/abi"
 	"cfx-evm-sync-sdk/data"
 	"cfx-evm-sync-sdk/store/cfxMysql"
 	"cfx-evm-sync-sdk/sync/simpleSync"
 	"context"
 	"fmt"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/openweb3/web3go"
 	"github.com/openweb3/web3go/types"
 	"gorm.io/gorm"
@@ -36,6 +39,7 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 			Block:              block,
 			TransactionDetails: []*types.TransactionDetail{},
 			Logs:               []*types.Log{},
+			Erc20Transfer:      []*types.Log{},
 		}
 		blockHashList := block.Transactions.Hashes()
 		var transactionDetail *types.TransactionDetail
@@ -50,6 +54,16 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 				continue
 			}
 			blockData.Logs = append(blockData.Logs, receipt.Logs...)
+		}
+		clientForContract, _ := w3client.ToClientForContract()
+		for _, lg := range blockData.Logs {
+			if IsErc20(lg.Address, clientForContract) {
+				// TODO：需要check一下这个操作是不是transfer？
+				// 要不要hardcode：topic[0]: 0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef
+				blockData.Erc20Transfer = append(blockData.Erc20Transfer, lg)
+			} else {
+				continue
+			}
 		}
 		return blockData, err
 	}
@@ -149,4 +163,31 @@ func convertBlockAndTransactionDetails(block *types.Block, transactionDetails []
 		TransactionDetails: dbTransactionDetailList,
 		Logs:               dbLogList,
 	}, err
+}
+
+func IsErc20(contractAddress common.Address, backend bind.ContractBackend) bool {
+	erc20Contract, err := erc20.NewErc20(contractAddress, backend)
+	if err != nil {
+		log.Printf("Cannot make new erc20 contract: %v", err)
+		return false
+	}
+	name, err := erc20Contract.Name(&bind.CallOpts{Context: context.Background()})
+	if err != nil {
+		log.Printf("Cannot get contract name: %v", err)
+		return false
+	}
+	symbol, err := erc20Contract.Symbol(&bind.CallOpts{Context: context.Background()})
+	if err != nil {
+		log.Printf("Cannot get contract symbol: %v", err)
+		return false
+	}
+	decimals, err := erc20Contract.Decimals(&bind.CallOpts{Context: context.Background()})
+	if err != nil {
+		log.Printf("Cannot get contract decimal: %v", err)
+		return false
+	}
+	if name != "" && symbol != "" && decimals != 0 {
+		return true
+	}
+	return false
 }
