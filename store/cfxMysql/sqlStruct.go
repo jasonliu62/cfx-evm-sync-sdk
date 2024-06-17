@@ -61,6 +61,11 @@ type Erc20Transfer struct {
 	TxIndex     uint   `json:"transactionIndex"`
 }
 
+type Erc20 struct {
+	ID      uint   `gorm:"primaryKey;autoIncrement"`
+	Address string `gorm:"index" json:"address"`
+}
+
 func ConvertLogWithoutTopic(log *types.Log) Log {
 	return Log{
 		BlockNumber: log.BlockNumber,

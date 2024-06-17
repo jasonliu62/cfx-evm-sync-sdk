@@ -19,18 +19,6 @@ import (
 	"time"
 )
 
-//func BlockByNumber(node string, startBlock, endBlock uint64) map[uint64]data.DataWrap {
-//	GetFunc := func(w3client *web3go.Client, blockNumber interface{}) (interface{}, error) {
-//		blockNumberUint := blockNumber.(uint64)
-//		block, err := w3client.Eth.BlockByNumber(types.BlockNumber(blockNumberUint), false)
-//		return block, err
-//	}
-//	s := simpleSync.NewSdk(GetFunc)
-//	w3client := simpleSync.GetRpcClient(node)
-//	return s.SimpleGet(startBlock, endBlock)
-//
-//}
-
 func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 	GetFuncBlock := func(w3client *web3go.Client, blockNumberOrHash data.BlockNumberOrHash) (interface{}, error) {
 		blockNumberUint := blockNumberOrHash.BlockNumber
@@ -58,12 +46,21 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 		clientForContract, _ := w3client.ToClientForContract()
 		transfer := "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 		for _, lg := range blockData.Logs {
-			if IsErc20(lg.Address, clientForContract) {
-				// hardcode：topic[0]: 0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef
-				if lg.Topics[0].Hex() != transfer {
-					continue
+			if lg.Topics[0].Hex() != transfer && len(lg.Topics) == 3 {
+				found, err := cfxMysql.FindErc20(db, lg.Address.Hex())
+				if err != nil {
+					log.Printf("Failed to check ERC20 address: %v", err)
 				}
-				blockData.Erc20Transfer = append(blockData.Erc20Transfer, lg)
+				if !found {
+					if isErc20 := IsErc20(common.HexToAddress(lg.Address.Hex()), clientForContract); isErc20 {
+						blockData.Erc20Transfer = append(blockData.Erc20Transfer, lg)
+						if err := cfxMysql.CreateErc20(db, lg.Address.Hex()); err != nil {
+							log.Printf("Failed to store Erc20 address: %v", err)
+						}
+					}
+				} else {
+					blockData.Erc20Transfer = append(blockData.Erc20Transfer, lg)
+				}
 			} else {
 				continue
 			}
@@ -86,7 +83,6 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 	if err != nil {
 		log.Println("GetInitBlockNumber err:", err)
 	}
-	//s.ContinueGet(ctx, startBlock, GetFunc)
 	for {
 		select {
 		case <-ctx.Done():
@@ -105,8 +101,7 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 					continue
 				}
 				fmt.Printf("We have block %d.", currentBlock)
-				blkDataSQL, err := convertToBlkData(result.Value.(data.BlockData).Block, result.Value.(data.BlockData).TransactionDetails,
-					result.Value.(data.BlockData).Logs, result.Value.(data.BlockData).Erc20Transfer, db)
+				blkDataSQL, err := convertBlkDataToBlkDataMySQL(result.Value.(data.BlockData), db)
 				if err != nil {
 					log.Printf("Failed to convert blockData %d: %v", currentBlock, err)
 					return
@@ -123,8 +118,11 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 	}
 }
 
-func convertToBlkData(block *types.Block, transactionDetails []*types.TransactionDetail,
-	logs []*types.Log, erc20Transfers []*types.Log, db *gorm.DB) (cfxMysql.BlockDataMySQL, error) {
+func convertBlkDataToBlkDataMySQL(blkData data.BlockData, db *gorm.DB) (cfxMysql.BlockDataMySQL, error) {
+	block := blkData.Block
+	transactionDetails := blkData.TransactionDetails
+	logs := blkData.Logs
+	erc20Transfers := blkData.Erc20Transfer
 	dbBlock := cfxMysql.ConvertBlockWithoutAuthor(block)
 	authorName := cfxMysql.ConvertAddressToString(block.Author)
 	author, err := cfxMysql.FindOrCreateAddress(db, authorName)

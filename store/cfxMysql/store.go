@@ -110,6 +110,25 @@ func FindOrCreateHash(db *gorm.DB, hashStr string) (Hash, error) {
 	return hash, nil
 }
 
+func FindErc20(db *gorm.DB, addressStr string) (bool, error) {
+	var erc20 Erc20
+	if err := db.Where("address = ?", addressStr).First(&erc20).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+func CreateErc20(db *gorm.DB, address string) error {
+	erc20 := Erc20{Address: address}
+	if err := db.Create(&erc20).Error; err != nil {
+		return fmt.Errorf("failed to create ERC20 address: %w", err)
+	}
+	return nil
+}
+
 func getLatestBlock(db *gorm.DB) (Block, error) {
 	var block Block
 	if err := db.Order("block_number desc").First(&block).Error; err != nil {
