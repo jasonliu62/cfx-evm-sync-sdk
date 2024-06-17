@@ -52,11 +52,12 @@ type Log struct {
 
 type Erc20Transfer struct {
 	ID          uint   `gorm:"primaryKey;autoIncrement"`
+	Address     uint   `json:"address"`
 	BlockNumber uint64 `json:"block_number"`
-	Data        []byte `json:"data"`
 	LogIndex    uint   `json:"log_index"`
-	Topic1      string `json:"topics1"`
-	Topic2      string `json:"topics2"`
+	Src         uint   `json:"topics1"`
+	Dst         uint   `json:"topics2"`
+	Wad         string `json:"data[0]"`
 	TxIndex     uint   `json:"transactionIndex"`
 }
 
@@ -65,6 +66,15 @@ func ConvertLogWithoutTopic(log *types.Log) Log {
 		BlockNumber: log.BlockNumber,
 		Data:        log.Data,
 		LogIndex:    log.Index,
+		TxIndex:     log.TxIndex,
+	}
+}
+
+func ConvertErc20Transfer(log *types.Log) Erc20Transfer {
+	return Erc20Transfer{
+		BlockNumber: log.BlockNumber,
+		LogIndex:    log.Index,
+		Wad:         string(log.Data[0]),
 		TxIndex:     log.TxIndex,
 	}
 }
@@ -108,6 +118,7 @@ type BlockDataMySQL struct {
 	Block              Block
 	TransactionDetails []TransactionDetail
 	Logs               []Log
+	Erc20Transfers     []Erc20Transfer
 }
 
 func ConvertAddressToString(author *common.Address) string {

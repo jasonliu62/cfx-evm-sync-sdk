@@ -56,10 +56,13 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 			blockData.Logs = append(blockData.Logs, receipt.Logs...)
 		}
 		clientForContract, _ := w3client.ToClientForContract()
+		transfer := "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 		for _, lg := range blockData.Logs {
 			if IsErc20(lg.Address, clientForContract) {
-				// TODO：需要check一下这个操作是不是transfer？
-				// 要不要hardcode：topic[0]: 0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef
+				// hardcode：topic[0]: 0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef
+				if lg.Topics[0].Hex() != transfer {
+					continue
+				}
 				blockData.Erc20Transfer = append(blockData.Erc20Transfer, lg)
 			} else {
 				continue
@@ -102,8 +105,8 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 					continue
 				}
 				fmt.Printf("We have block %d.", currentBlock)
-				blkDataSQL, err := convertBlockAndTransactionDetails(result.Value.(data.BlockData).Block, result.Value.(data.BlockData).TransactionDetails,
-					result.Value.(data.BlockData).Logs, db)
+				blkDataSQL, err := convertToBlkData(result.Value.(data.BlockData).Block, result.Value.(data.BlockData).TransactionDetails,
+					result.Value.(data.BlockData).Logs, result.Value.(data.BlockData).Erc20Transfer, db)
 				if err != nil {
 					log.Printf("Failed to convert blockData %d: %v", currentBlock, err)
 					return
@@ -120,8 +123,8 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 	}
 }
 
-func convertBlockAndTransactionDetails(block *types.Block, transactionDetails []*types.TransactionDetail,
-	logs []*types.Log, db *gorm.DB) (cfxMysql.BlockDataMySQL, error) {
+func convertToBlkData(block *types.Block, transactionDetails []*types.TransactionDetail,
+	logs []*types.Log, erc20Transfers []*types.Log, db *gorm.DB) (cfxMysql.BlockDataMySQL, error) {
 	dbBlock := cfxMysql.ConvertBlockWithoutAuthor(block)
 	authorName := cfxMysql.ConvertAddressToString(block.Author)
 	author, err := cfxMysql.FindOrCreateAddress(db, authorName)
@@ -131,6 +134,7 @@ func convertBlockAndTransactionDetails(block *types.Block, transactionDetails []
 	dbBlock.AuthorID = author.ID
 	var dbTransactionDetailList []cfxMysql.TransactionDetail
 	var dbLogList []cfxMysql.Log
+	var dbErc20List []cfxMysql.Erc20Transfer
 	for index, transactionDetail := range transactionDetails {
 		dbTransactionDetail := cfxMysql.ConvertTransactionDetail(uint(index), transactionDetail)
 		from, err := cfxMysql.FindOrCreateAddress(db, cfxMysql.ConvertAddressToString(&transactionDetail.From))
@@ -152,16 +156,30 @@ func convertBlockAndTransactionDetails(block *types.Block, transactionDetails []
 		t0Hash, err := cfxMysql.FindOrCreateHash(db, cfxMysql.ConvertHashToString(topic0))
 		address, err := cfxMysql.FindOrCreateAddress(db, cfxMysql.ConvertAddressToString(&l.Address))
 		if err != nil {
-			return cfxMysql.BlockDataMySQL{}, fmt.Errorf("failed to find or create author address: %w", err)
+			return cfxMysql.BlockDataMySQL{}, fmt.Errorf("failed to find or create address: %w", err)
 		}
 		dbLog.Topic0 = t0Hash.ID
 		dbLog.Address = address.ID
 		dbLogList = append(dbLogList, cfxMysql.ConvertLogTopics(dbLog, topics))
 	}
+	for _, t := range erc20Transfers {
+		dbErc20 := cfxMysql.ConvertErc20Transfer(t)
+		address, err := cfxMysql.FindOrCreateAddress(db, cfxMysql.ConvertAddressToString(&t.Address))
+		src, err := cfxMysql.FindOrCreateAddress(db, cfxMysql.ConvertHashToString(t.Topics[1]))
+		dst, err := cfxMysql.FindOrCreateAddress(db, cfxMysql.ConvertHashToString(t.Topics[2]))
+		if err != nil {
+			return cfxMysql.BlockDataMySQL{}, fmt.Errorf("failed to find or create address: %w", err)
+		}
+		dbErc20.Address = address.ID
+		dbErc20.Src = src.ID
+		dbErc20.Dst = dst.ID
+		dbErc20List = append(dbErc20List, dbErc20)
+	}
 	return cfxMysql.BlockDataMySQL{
 		Block:              dbBlock,
 		TransactionDetails: dbTransactionDetailList,
 		Logs:               dbLogList,
+		Erc20Transfers:     dbErc20List,
 	}, err
 }
 

@@ -2,8 +2,9 @@ package main
 
 import (
 	"cfx-evm-sync-sdk/biz/simpleBiz"
-	"fmt"
-	"github.com/ethereum/go-ethereum/common"
+	"cfx-evm-sync-sdk/config"
+	"cfx-evm-sync-sdk/store/cfxMysql"
+	"github.com/spf13/viper"
 )
 
 func main() {

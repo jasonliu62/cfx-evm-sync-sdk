@@ -47,7 +47,7 @@ func NewDB(config *Config) (*gorm.DB, error) {
 }
 
 func InitDB(db *gorm.DB) error {
-	err := db.AutoMigrate(&Block{}, &Address{}, &TransactionDetail{}, &Log{}, &Hash{})
+	err := db.AutoMigrate(&Block{}, &Address{}, &TransactionDetail{}, &Log{}, &Hash{}, &Erc20Transfer{})
 	if err != nil {
 		return err
 	}
@@ -69,6 +69,9 @@ func StoreBlockTransactionsAndLogs(db *gorm.DB, blockDataMySQL BlockDataMySQL) e
 			return nil
 		}
 		if err := tx.Create(&blockDataMySQL.Logs).Error; err != nil {
+			return fmt.Errorf("failed to create logs: %w", err)
+		}
+		if err := tx.Create(&blockDataMySQL.Erc20Transfers).Error; err != nil {
 			return fmt.Errorf("failed to create logs: %w", err)
 		}
 		return nil
