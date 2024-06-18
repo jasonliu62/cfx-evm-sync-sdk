@@ -57,7 +57,7 @@ type Erc20Transfer struct {
 	LogIndex    uint   `json:"log_index"`
 	Src         uint   `json:"topics1"`
 	Dst         uint   `json:"topics2"`
-	Wad         string `json:"data[0]"`
+	Wad         []byte `json:"data"`
 	TxIndex     uint   `json:"transactionIndex"`
 }
 
@@ -79,7 +79,7 @@ func ConvertErc20Transfer(log *types.Log) Erc20Transfer {
 	return Erc20Transfer{
 		BlockNumber: log.BlockNumber,
 		LogIndex:    log.Index,
-		Wad:         string(log.Data[0]),
+		Wad:         log.Data,
 		TxIndex:     log.TxIndex,
 	}
 }
