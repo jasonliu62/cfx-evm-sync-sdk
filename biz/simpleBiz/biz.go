@@ -47,18 +47,12 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 		transfer := "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 		for _, lg := range blockData.Logs {
 			if lg.Topics[0].Hex() != transfer && len(lg.Topics) == 3 {
-				found, err := cfxMysql.FindErc20(db, lg.Address.Hex())
+				isErc20, err := IsErc20(db, common.HexToAddress(lg.Address.Hex()), clientForContract)
 				if err != nil {
-					log.Printf("Failed to check ERC20 address: %v", err)
+					log.Printf("Failed to check if address is ERC20: %v", err)
+					continue
 				}
-				if !found {
-					if isErc20 := IsErc20(common.HexToAddress(lg.Address.Hex()), clientForContract); isErc20 {
-						blockData.Erc20Transfer = append(blockData.Erc20Transfer, lg)
-						if err := cfxMysql.CreateErc20(db, lg.Address.Hex()); err != nil {
-							log.Printf("Failed to store Erc20 address: %v", err)
-						}
-					}
-				} else {
+				if isErc20 {
 					blockData.Erc20Transfer = append(blockData.Erc20Transfer, lg)
 				}
 			} else {
@@ -181,29 +175,40 @@ func convertBlkDataToBlkDataMySQL(blkData data.BlockData, db *gorm.DB) (cfxMysql
 	}, err
 }
 
-func IsErc20(contractAddress common.Address, backend bind.ContractBackend) bool {
+func IsErc20(db *gorm.DB, contractAddress common.Address, backend bind.ContractBackend) (bool, error) {
+	found, err := cfxMysql.FindErc20(db, contractAddress.Hex())
+	if err != nil {
+		return false, fmt.Errorf("failed to check ERC20 address: %w", err)
+	}
+
+	if found {
+		return true, nil
+	}
 	erc20Contract, err := erc20.NewErc20(contractAddress, backend)
 	if err != nil {
 		log.Printf("Cannot make new erc20 contract: %v", err)
-		return false
+		return false, err
 	}
 	name, err := erc20Contract.Name(&bind.CallOpts{Context: context.Background()})
 	if err != nil {
 		log.Printf("Cannot get contract name: %v", err)
-		return false
+		return false, err
 	}
 	symbol, err := erc20Contract.Symbol(&bind.CallOpts{Context: context.Background()})
 	if err != nil {
 		log.Printf("Cannot get contract symbol: %v", err)
-		return false
+		return false, err
 	}
 	decimals, err := erc20Contract.Decimals(&bind.CallOpts{Context: context.Background()})
 	if err != nil {
 		log.Printf("Cannot get contract decimal: %v", err)
-		return false
+		return false, err
 	}
 	if name != "" && symbol != "" && decimals != 0 {
-		return true
+		if err := cfxMysql.CreateErc20(db, contractAddress.Hex()); err != nil {
+			log.Printf("Failed to store Erc20 address: %v", err)
+		}
+		return true, nil
 	}
-	return false
+	return false, nil
 }
