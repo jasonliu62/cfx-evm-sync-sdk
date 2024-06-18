@@ -10,6 +10,7 @@ import (
 func InitRoutes(router *gin.Engine, db *gorm.DB) {
 	blockController := BlockController{DB: db}
 	router.POST("/continue-block", blockController.ContinueBlockHandler)
+	router.GET("/erc20_transfers/:address", blockController.GetErc20Transfers)
 }
 
 type BlockController struct {
@@ -27,4 +28,22 @@ func (bc *BlockController) ContinueBlockHandler(c *gin.Context) {
 	}
 	go simpleBiz.ContinueBlockByNumber(request.Node, request.StartBlock, bc.DB)
 	c.JSON(http.StatusOK, gin.H{"status": "started"})
+}
+
+func (bc *BlockController) GetErc20Transfers(c *gin.Context) {
+	address := c.Param("address")
+	if address == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "address is required"})
+		return
+	}
+	transfers, err := simpleBiz.GetErc20Transfers(bc.DB, address)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if transfers == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "address not found"})
+		return
+	}
+	c.JSON(http.StatusOK, transfers)
 }

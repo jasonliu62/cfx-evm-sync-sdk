@@ -170,6 +170,21 @@ func GetInitBlockNumber(db *gorm.DB, inputBlockNumber uint64) (uint64, error) {
 	}
 }
 
+func GetErc20TransfersByAddress(db *gorm.DB, address string) ([]Erc20Transfer, error) {
+	var addr Address
+	if err := db.Where("address = ?", address).First(&addr).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var transfers []Erc20Transfer
+	if err := db.Where("address = ?", addr.ID).Find(&transfers).Error; err != nil {
+		return nil, err
+	}
+	return transfers, nil
+}
+
 func Start() *gorm.DB {
 	// Load configuration
 	config, err := LoadConfig("./store/cfxMysql/config.yaml")

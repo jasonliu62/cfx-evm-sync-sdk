@@ -112,6 +112,10 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 	}
 }
 
+func GetErc20Transfers(db *gorm.DB, address string) ([]cfxMysql.Erc20Transfer, error) {
+	return cfxMysql.GetErc20TransfersByAddress(db, address)
+}
+
 func convertBlkDataToBlkDataMySQL(blkData data.BlockData, db *gorm.DB) (cfxMysql.BlockDataMySQL, error) {
 	block := blkData.Block
 	transactionDetails := blkData.TransactionDetails
