@@ -137,12 +137,14 @@ func convertBlkDataToBlkDataMySQL(blkData data.BlockData, db *gorm.DB) (cfxMysql
 		if err != nil {
 			return cfxMysql.BlockDataMySQL{}, fmt.Errorf("failed to find or create from address: %w", err)
 		}
-		to, err := cfxMysql.FindOrCreateAddress(db, cfxMysql.ConvertAddressToString(transactionDetail.To))
-		if err != nil {
-			return cfxMysql.BlockDataMySQL{}, fmt.Errorf("failed to find or create to address: %w", err)
+		if transactionDetail.To != nil {
+			to, err := cfxMysql.FindOrCreateAddress(db, cfxMysql.ConvertAddressToString(transactionDetail.To))
+			if err != nil {
+				return cfxMysql.BlockDataMySQL{}, fmt.Errorf("failed to find or create to address: %w", err)
+			}
+			dbTransactionDetail.ToAddress = to.ID
 		}
 		dbTransactionDetail.FromAddress = from.ID
-		dbTransactionDetail.ToAddress = to.ID
 		dbTransactionDetailList = append(dbTransactionDetailList, dbTransactionDetail)
 	}
 	for _, l := range logs {
