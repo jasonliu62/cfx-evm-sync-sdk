@@ -46,7 +46,7 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 		clientForContract, _ := w3client.ToClientForContract()
 		transfer := "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 		for _, lg := range blockData.Logs {
-			if lg.Topics[0].Hex() != transfer && len(lg.Topics) == 3 {
+			if lg.Topics[0].Hex() == transfer && len(lg.Topics) == 3 {
 				isErc20, err := IsErc20(db, common.HexToAddress(lg.Address.Hex()), clientForContract)
 				if err != nil {
 					log.Printf("Failed to check if address is ERC20: %v", err)
