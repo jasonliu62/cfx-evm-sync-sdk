@@ -11,6 +11,7 @@ func InitRoutes(router *gin.Engine, db *gorm.DB) {
 	blockController := BlockController{DB: db}
 	router.POST("/continue-block", blockController.ContinueBlockHandler)
 	router.GET("/erc20_transfers/:address", blockController.GetErc20Transfers)
+	router.POST("/check-erc20", blockController.CheckErc20)
 }
 
 type BlockController struct {
@@ -46,4 +47,17 @@ func (bc *BlockController) GetErc20Transfers(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, transfers)
+}
+
+func (bc *BlockController) CheckErc20(c *gin.Context) {
+	var request struct {
+		Node    string `json:"node"`
+		Address string `json:"address"`
+	}
+	if err := c.BindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	go simpleBiz.TestErc20(request.Address, request.Node)
+	c.JSON(http.StatusOK, gin.H{"status": "started"})
 }
