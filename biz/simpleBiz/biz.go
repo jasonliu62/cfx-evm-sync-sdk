@@ -112,7 +112,7 @@ func ContinueBlockByNumber(node string, startBlock uint64, db *gorm.DB) {
 	}
 }
 
-func GetErc20Transfers(db *gorm.DB, address string) ([]cfxMysql.Erc20Transfer, error) {
+func GetErc20Transfers(db *gorm.DB, address string) (map[string]interface{}, error) {
 	return cfxMysql.GetErc20TransfersByAddress(db, address)
 }
 

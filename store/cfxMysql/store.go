@@ -1,12 +1,14 @@
 package cfxMysql
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"github.com/ghodss/yaml"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"log"
+	"math/big"
 	"os"
 )
 
@@ -170,7 +172,7 @@ func GetInitBlockNumber(db *gorm.DB, inputBlockNumber uint64) (uint64, error) {
 	}
 }
 
-func GetErc20TransfersByAddress(db *gorm.DB, address string) ([]Erc20Transfer, error) {
+func GetErc20TransfersByAddress(db *gorm.DB, address string) (map[string]interface{}, error) {
 	var addr Address
 	if err := db.Where("address = ?", address).First(&addr).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -182,7 +184,39 @@ func GetErc20TransfersByAddress(db *gorm.DB, address string) ([]Erc20Transfer, e
 	if err := db.Where("address = ?", addr.ID).Find(&transfers).Error; err != nil {
 		return nil, err
 	}
-	return transfers, nil
+	var result []TransferResult
+	for _, transfer := range transfers {
+		var addr Address
+		var src Address
+		var dst Address
+		if err := db.First(&addr, transfer.Address).Error; err != nil {
+			return nil, err
+		}
+		if err := db.First(&src, transfer.Src).Error; err != nil {
+			return nil, err
+		}
+		if err := db.First(&dst, transfer.Dst).Error; err != nil {
+			return nil, err
+		}
+		value := new(big.Int)
+		value.SetString(hex.EncodeToString(transfer.Wad), 16)
+		result = append(result, TransferResult{
+			EpochNumber:         transfer.BlockNumber,
+			TransactionLogIndex: transfer.LogIndex,
+			Address:             addr.Address,
+			From:                src.Address,
+			To:                  dst.Address,
+			Value:               value.String(),
+		})
+	}
+	return map[string]interface{}{
+		"status":  "1",
+		"message": "",
+		"total":   len(result),
+		"result": map[string]interface{}{
+			"list": result,
+		},
+	}, nil
 }
 
 func Start() *gorm.DB {

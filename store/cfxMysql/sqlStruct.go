@@ -66,6 +66,15 @@ type Erc20 struct {
 	Address string `gorm:"index" json:"address"`
 }
 
+type TransferResult struct {
+	EpochNumber         uint64 `json:"epochNumber"`
+	TransactionLogIndex uint   `json:"transactionLogIndex"`
+	Address             string `json:"address"`
+	From                string `json:"from"`
+	To                  string `json:"to"`
+	Value               string `json:"value"`
+}
+
 func ConvertLogWithoutTopic(log *types.Log) Log {
 	return Log{
 		BlockNumber: log.BlockNumber,
